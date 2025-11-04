@@ -386,7 +386,6 @@ public class OpcPlcServer
             .ConfigureWebHostDefaults(webBuilder => {
                 webBuilder.UseContentRoot(contentRoot); // Avoid System.InvalidOperationException.
                 webBuilder.UseUrls($"http://*:{Config.WebServerPort}");
-                webBuilder.UseStartup<Startup>();
             }).Build();
 
         return host;
