@@ -2,40 +2,33 @@ namespace OpcPlc;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Hosting;
-using System.IO;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using OpcPlc.Configuration;
+using System;
+using System.IO;
 
 public static class Program
 {
-    public static OpcPlcServer OpcPlcServer { get; private set; }
-
     /// <summary>
     /// Synchronous main method of the app.
     /// </summary>
     public static void Main(string[] args)
     {
-        OpcPlcServer = new OpcPlcServer();
-
-        // Start the web app in a background task to serve pn.json without blocking the OPC server.
-        Task.Run(() => RunWebApp(args));
-
-        // Start OPC UA server.
-        OpcPlcServer.StartAsync(args).Wait();
-    }
-
-    private static void RunWebApp(string[] args)
-    {
         var builder = WebApplication.CreateBuilder(args);
-        
+
+        // Configure options from appsettings.json and command line
+        builder.Services.Configure<OpcPlcConfiguration>(
+            builder.Configuration.GetSection(OpcPlcConfiguration.SectionName));
+
         // Add MVC services for controllers
         builder.Services.AddControllers();
-        
-        // Register the configuration as a singleton for dependency injection
-        builder.Services.AddSingleton(OpcPlcServer.Config);
-        
+
+        // Register dependencies
+        builder.Services.AddSingleton(args);
+        builder.Services.AddHostedService<OpcPlcServer>();
+
         var app = builder.Build();
 
         if (app.Environment.IsDevelopment())

@@ -3,6 +3,7 @@ namespace OpcPlc;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Opc.Ua;
 using OpcPlc.Configuration;
 using OpcPlc.Extensions;
@@ -11,7 +12,6 @@ using OpcPlc.Logging;
 using OpcPlc.PluginNodes.Models;
 using System;
 using System.Collections.Immutable;
-using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -20,26 +20,21 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
-public class OpcPlcServer
+public class OpcPlcServer : BackgroundService
 {
     private const int DefaultMinThreads = 20;
     private const int DefaultCompletionPortThreads = 20;
 
-    private string[] _args;
-    private CancellationTokenSource _cancellationTokenSource;
+    private readonly string[] _args;
+    private readonly OpcPlcConfiguration _config;
+    private readonly ILogger<OpcPlcServer> _logger;
     private ImmutableList<IPluginNodes> _pluginNodes;
-
-    public OpcPlcConfiguration Config { get; set; }
+    private IHost _webHost;
 
     /// <summary>
     /// The LoggerFactory used to create logging objects.
     /// </summary>
     public ILoggerFactory LoggerFactory { get; set; }
-
-    /// <summary>
-    /// Logging object.
-    /// </summary>
-    public ILogger Logger { get; set; }
 
     /// <summary>
     /// OPC UA server object.
@@ -61,87 +56,113 @@ public class OpcPlcServer
     /// </summary>
     public bool Ready { get; set; }
 
-    /// <summary>
-    /// Start the PLC server and simulation.
-    /// </summary>
-    public async Task StartAsync(string[] args, CancellationToken cancellationToken = default)
+    public OpcPlcServer(
+        string[] args,
+        IOptions<OpcPlcConfiguration> options,
+        ILoggerFactory loggerFactory,
+        ILogger<OpcPlcServer> logger)
     {
-        // Initialize configuration.
         _args = args;
-        Config = new OpcPlcConfiguration();
+        _config = options.Value;
+        LoggerFactory = loggerFactory;
+        _logger = logger;
+    }
 
-        InitLogging();
+    /// <summary>
+    /// Execute the background service.
+    /// </summary>
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
         LoadPluginNodes();
-        (PlcSimulationInstance, var extraArgs) = CliOptions.InitConfiguration(args, Config, _pluginNodes);
+        (PlcSimulationInstance, var extraArgs) = CliOptions.InitConfiguration(_args, _config, _pluginNodes);
 
         // Show usage if requested
-        if (Config.ShowHelp)
+        if (_config.ShowHelp)
         {
-            Logger.LogInformation(CliOptions.GetUsageHelp(Config.ProgramName));
+            _logger.LogInformation(CliOptions.GetUsageHelp(_config.ProgramName));
             return;
         }
 
         // Validate and parse extra arguments.
         if (extraArgs.Count > 0)
         {
-            Logger.LogWarning("Found one or more invalid command line arguments: {InvalidArgs}", string.Join(" ", extraArgs));
-            Logger.LogInformation(CliOptions.GetUsageHelp(Config.ProgramName));
+            _logger.LogWarning("Found one or more invalid command line arguments: {InvalidArgs}", string.Join(" ", extraArgs));
+            _logger.LogInformation(CliOptions.GetUsageHelp(_config.ProgramName));
         }
 
         LogLogo();
 
         ThreadPool.SetMinThreads(DefaultMinThreads, DefaultCompletionPortThreads);
         ThreadPool.GetMinThreads(out int minWorkerThreads, out int minCompletionPortThreads);
-        Logger.LogInformation(
+        _logger.LogInformation(
             "Min worker threads: {MinWorkerThreads}, min completion port threads: {MinCompletionPortThreads}",
             minWorkerThreads,
             minCompletionPortThreads);
 
-        Logger.LogInformation("Current directory: {CurrentDirectory}", Directory.GetCurrentDirectory());
-        Logger.LogInformation("Log file: {LogFileName}", Path.GetFullPath(Config.LogFileName));
-        Logger.LogInformation("Log level: {LogLevel}", Config.LogLevelCli);
+        _logger.LogInformation("Current directory: {CurrentDirectory}", Directory.GetCurrentDirectory());
+        _logger.LogInformation("Log file: {LogFileName}", Path.GetFullPath(_config.LogFileName));
+        _logger.LogInformation("Log level: {LogLevel}", _config.LogLevelCli);
 
         // Show OPC PLC version.
         var fileVersion = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
-        Logger.LogInformation("{ProgramName} v{Version} from {Date} starting up ...",
-            Config.ProgramName,
+        _logger.LogInformation("{ProgramName} v{Version} from {Date} starting up ...",
+            _config.ProgramName,
             $"{fileVersion.ProductMajorPart}.{fileVersion.ProductMinorPart}.{fileVersion.ProductBuildPart}",
             File.GetLastWriteTimeUtc(Assembly.GetExecutingAssembly().Location));
-        Logger.LogDebug("{ProgramName} informational version: v{Version}",
-            Config.ProgramName,
+        _logger.LogDebug("{ProgramName} informational version: v{Version}",
+            _config.ProgramName,
             (Attribute.GetCustomAttribute(Assembly.GetEntryAssembly(), typeof(AssemblyInformationalVersionAttribute)) as AssemblyInformationalVersionAttribute)?.InformationalVersion);
 
         // Show OPC UA SDK version.
-        Logger.LogInformation(
+        _logger.LogInformation(
             "OPC UA SDK {Version} from {Date}",
             Utils.GetAssemblyBuildNumber(),
             Utils.GetAssemblyTimestamp());
-        Logger.LogDebug(
+        _logger.LogDebug(
             "OPC UA SDK informational version: {Version}",
             Utils.GetAssemblySoftwareVersion());
 
-        if (Config.OtlpEndpointUri is not null)
+        if (_config.OtlpEndpointUri is not null)
         {
-            OtelHelper.ConfigureOpenTelemetry(Config.ProgramName, Config.OtlpEndpointUri, Config.OtlpExportProtocol, Config.OtlpExportInterval);
+            OtelHelper.ConfigureOpenTelemetry(_config.ProgramName, _config.OtlpEndpointUri, _config.OtlpExportProtocol, _config.OtlpExportInterval);
         }
 
-        using var host = CreateHostBuilder(args);
-        if (Config.ShowPublisherConfigJsonIp || Config.ShowPublisherConfigJsonPh)
+        if (_config.ShowPublisherConfigJsonIp || _config.ShowPublisherConfigJsonPh)
         {
-            StartWebServer(host);
+            _webHost = CreateHostBuilder(_args);
+            StartWebServer(_webHost);
         }
 
         try
         {
-            await StartPlcServerAsync(cancellationToken).ConfigureAwait(false);
+            await StartPlcServerAsync(stoppingToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            Logger.LogCritical(ex, "OPC UA server failed unexpectedly");
+            _logger.LogCritical(ex, "OPC UA server failed unexpectedly");
             throw;
         }
 
-        Logger.LogInformation("OPC UA server exiting ...");
+        _logger.LogInformation("OPC UA server exiting ...");
+    }
+
+    /// <summary>
+    /// Cleanup when the service is stopping.
+    /// </summary>
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Stopping PLC server and simulation ...");
+        
+        PlcSimulationInstance?.Stop();
+        PlcServer?.Stop();
+
+        if (_webHost != null)
+        {
+            await _webHost.StopAsync(cancellationToken).ConfigureAwait(false);
+            _webHost.Dispose();
+        }
+
+        await base.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -149,24 +170,14 @@ public class OpcPlcServer
     /// </summary>
     public async Task RestartAsync()
     {
-        Logger.LogInformation("Stopping PLC server and simulation ...");
+        _logger.LogInformation("Stopping PLC server and simulation ...");
         PlcServer.Stop();
         PlcSimulationInstance.Stop();
 
-        Logger.LogInformation("Restarting PLC server and simulation ...");
+        _logger.LogInformation("Restarting PLC server and simulation ...");
         LogLogo();
 
         await StartPlcServerAndSimulationAsync().ConfigureAwait(false);
-    }
-
-
-
-    /// <summary>
-    /// Stop the application.
-    /// </summary>
-    public void Stop()
-    {
-        _cancellationTokenSource.Cancel();
     }
 
     /// <summary>
@@ -180,7 +191,7 @@ public class OpcPlcServer
             .Where(t => pluginNodesType.IsAssignableFrom(t) &&
                         !t.IsInterface &&
                         !t.IsAbstract)
-            .Select(t => Activator.CreateInstance(t, TimeService, Logger))
+            .Select(t => Activator.CreateInstance(t, TimeService, _logger))
             .Cast<IPluginNodes>()
             .ToImmutableList();
     }
@@ -194,23 +205,23 @@ public class OpcPlcServer
         {
             host.Start();
 
-            if (Config.ShowPublisherConfigJsonIp)
+            if (_config.ShowPublisherConfigJsonIp)
             {
-                Logger.LogInformation("Web server started: {PnJsonUri}", $"http://{GetIpAddress()}:{Config.WebServerPort}/{Config.PnJson}");
+                _logger.LogInformation("Web server started: {PnJsonUri}", $"http://{GetIpAddress()}:{_config.WebServerPort}/{_config.PnJson}");
             }
-            else if (Config.ShowPublisherConfigJsonPh)
+            else if (_config.ShowPublisherConfigJsonPh)
             {
-                Logger.LogInformation("Web server started: {PnJsonUri}", $"http://{Config.OpcUa.Hostname}:{Config.WebServerPort}/{Config.PnJson}");
+                _logger.LogInformation("Web server started: {PnJsonUri}", $"http://{_config.OpcUa.Hostname}:{_config.WebServerPort}/{_config.PnJson}");
             }
             else
             {
-                Logger.LogInformation("Web server started on port {WebServerPort}", Config.WebServerPort);
+                _logger.LogInformation("Web server started on port {WebServerPort}", _config.WebServerPort);
             }
         }
         catch (Exception e)
         {
-            Logger.LogError(e, "Could not start web server on port {WebServerPort}: {Message}",
-                Config.WebServerPort,
+            _logger.LogError(e, "Could not start web server on port {WebServerPort}: {Message}",
+                _config.WebServerPort,
                 e.Message);
         }
     }
@@ -246,127 +257,63 @@ public class OpcPlcServer
     {
         await StartPlcServerAndSimulationAsync().ConfigureAwait(false);
 
-        if (Config.ShowPublisherConfigJsonIp)
+        if (_config.ShowPublisherConfigJsonIp)
         {
             await PnJsonHelper.PrintPublisherConfigJsonAsync(
-                Config.PnJson,
-                $"{GetIpAddress()}:{Config.OpcUa.ServerPort}{Config.OpcUa.ServerPath}",
-                !Config.OpcUa.EnableUnsecureTransport,
+                _config.PnJson,
+                $"{GetIpAddress()}:{_config.OpcUa.ServerPort}{_config.OpcUa.ServerPath}",
+                !_config.OpcUa.EnableUnsecureTransport,
                 _pluginNodes,
-                Logger).ConfigureAwait(false);
+                _logger).ConfigureAwait(false);
         }
-        else if (Config.ShowPublisherConfigJsonPh)
+        else if (_config.ShowPublisherConfigJsonPh)
         {
             await PnJsonHelper.PrintPublisherConfigJsonAsync(
-                Config.PnJson,
-                $"{Config.OpcUa.Hostname}:{Config.OpcUa.ServerPort}{Config.OpcUa.ServerPath}",
-                !Config.OpcUa.EnableUnsecureTransport,
+                _config.PnJson,
+                $"{_config.OpcUa.Hostname}:{_config.OpcUa.ServerPort}{_config.OpcUa.ServerPath}",
+                !_config.OpcUa.EnableUnsecureTransport,
                 _pluginNodes,
-                Logger).ConfigureAwait(false);
+                _logger).ConfigureAwait(false);
         }
 
         Ready = true;
-        Logger.LogInformation("PLC simulation started, press Ctrl+C to exit ...");
+        _logger.LogInformation("PLC simulation started, press Ctrl+C to exit ...");
 
         // Wait for cancellation.
-        _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        Console.CancelKeyPress += (_, eArgs) => {
-            _cancellationTokenSource.Cancel();
-            eArgs.Cancel = true;
-        };
-
-        await _cancellationTokenSource.Token.WhenCanceled().ConfigureAwait(false);
-
-        PlcSimulationInstance.Stop();
-        PlcServer.Stop();
-        _cancellationTokenSource.Dispose();
+        await cancellationToken.WhenCanceled().ConfigureAwait(false);
     }
 
     private async Task StartPlcServerAndSimulationAsync()
     {
         // init OPC configuration and tracing
-        var opcUaAppConfigFactory = new OpcUaAppConfigFactory(Config, Logger, LoggerFactory);
+        var opcUaAppConfigFactory = new OpcUaAppConfigFactory(_config, _logger, LoggerFactory);
         ApplicationConfiguration plcApplicationConfiguration = await opcUaAppConfigFactory.ConfigureAsync().ConfigureAwait(false);
 
         // start the server.
-        Logger.LogInformation("Starting server on endpoint {Endpoint} ...", plcApplicationConfiguration.ServerConfiguration.BaseAddresses[0]);
-        Logger.LogInformation("Simulation settings are:");
-        Logger.LogInformation("One simulation phase consists of {SimulationCycleCount} cycles", PlcSimulationInstance.SimulationCycleCount);
-        Logger.LogInformation("One cycle takes {SimulationCycleLength} ms", PlcSimulationInstance.SimulationCycleLength);
-        Logger.LogInformation("Reference test simulation: {AddReferenceTestSimulation}",
+        _logger.LogInformation("Starting server on endpoint {Endpoint} ...", plcApplicationConfiguration.ServerConfiguration.BaseAddresses[0]);
+        _logger.LogInformation("Simulation settings are:");
+        _logger.LogInformation("One simulation phase consists of {SimulationCycleCount} cycles", PlcSimulationInstance.SimulationCycleCount);
+        _logger.LogInformation("One cycle takes {SimulationCycleLength} ms", PlcSimulationInstance.SimulationCycleLength);
+        _logger.LogInformation("Reference test simulation: {AddReferenceTestSimulation}",
             PlcSimulationInstance.AddReferenceTestSimulation ? "Enabled" : "Disabled");
-        Logger.LogInformation("Simple events: {AddSimpleEventsSimulation}",
+        _logger.LogInformation("Simple events: {AddSimpleEventsSimulation}",
             PlcSimulationInstance.AddSimpleEventsSimulation ? "Enabled" : "Disabled");
-        Logger.LogInformation("Alarms: {AddAlarmSimulation}", PlcSimulationInstance.AddAlarmSimulation ? "Enabled" : "Disabled");
-        Logger.LogInformation("Deterministic alarms: {DeterministicAlarmSimulation}",
+        _logger.LogInformation("Alarms: {AddAlarmSimulation}", PlcSimulationInstance.AddAlarmSimulation ? "Enabled" : "Disabled");
+        _logger.LogInformation("Deterministic alarms: {DeterministicAlarmSimulation}",
             PlcSimulationInstance.DeterministicAlarmSimulationFile != null ? "Enabled" : "Disabled");
 
-        Logger.LogInformation("Anonymous authentication: {AnonymousAuth}", Config.DisableAnonymousAuth ? "Disabled" : "Enabled");
-        Logger.LogInformation("Reject chain validation with CA certs with unknown revocation status: {RejectValidationUnknownRevocStatus}", Config.OpcUa.DontRejectUnknownRevocationStatus ? "Disabled" : "Enabled");
-        Logger.LogInformation("Username/Password authentication: {UsernamePasswordAuth}", Config.DisableUsernamePasswordAuth ? "Disabled" : "Enabled");
-        Logger.LogInformation("Certificate authentication: {CertAuth}", Config.DisableCertAuth ? "Disabled" : "Enabled");
+        _logger.LogInformation("Anonymous authentication: {AnonymousAuth}", _config.DisableAnonymousAuth ? "Disabled" : "Enabled");
+        _logger.LogInformation("Reject chain validation with CA certs with unknown revocation status: {RejectValidationUnknownRevocStatus}", _config.OpcUa.DontRejectUnknownRevocationStatus ? "Disabled" : "Enabled");
+        _logger.LogInformation("Username/Password authentication: {UsernamePasswordAuth}", _config.DisableUsernamePasswordAuth ? "Disabled" : "Enabled");
+        _logger.LogInformation("Certificate authentication: {CertAuth}", _config.DisableCertAuth ? "Disabled" : "Enabled");
 
         // Add simple events, alarms, reference test simulation and deterministic alarms.
-        PlcServer = new PlcServer(Config, PlcSimulationInstance, TimeService, _pluginNodes, Logger);
+        PlcServer = new PlcServer(_config, PlcSimulationInstance, TimeService, _pluginNodes, _logger);
         PlcServer.Start(plcApplicationConfiguration);
-        Logger.LogInformation("OPC UA Server started");
+        _logger.LogInformation("OPC UA Server started");
 
         // Add remaining base simulations.
         PlcSimulationInstance.Start(PlcServer);
-    }
-
-    /// <summary>
-    /// Initialize logging.
-    /// </summary>
-    private void InitLogging()
-    {
-        LogLevel logLevel;
-
-        // set the log level
-        switch (Config.LogLevelCli)
-        {
-            case "critical":
-                logLevel = LogLevel.Critical;
-                break;
-            case "error":
-                logLevel = LogLevel.Error;
-                break;
-            case "warn":
-                logLevel = LogLevel.Warning;
-                break;
-            case "info":
-                logLevel = LogLevel.Information;
-                break;
-            case "debug":
-                logLevel = LogLevel.Debug;
-                break;
-            case "trace":
-                logLevel = LogLevel.Trace;
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(Config.LogLevelCli), $"Unknown log level: {Config.LogLevelCli}");
-        }
-
-        LoggerFactory = LoggingProvider.CreateDefaultLoggerFactory(logLevel);
-
-        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("_GW_LOGP")))
-        {
-            Config.LogFileName = Environment.GetEnvironmentVariable("_GW_LOGP");
-        }
-        else
-        {
-            Config.LogFileName = $"{Dns.GetHostName().Split('.')[0].ToLowerInvariant()}-{GetPort()}-plc.log";
-        }
-
-        if (!string.IsNullOrEmpty(Config.LogFileName))
-        {
-            // configure rolling file sink
-            const int MAX_LOGFILE_SIZE = 1024 * 1024;
-            const int MAX_RETAINED_LOGFILES = 2;
-            LoggerFactory.AddFile(Config.LogFileName, logLevel, levelOverrides: null, isJson: false, fileSizeLimitBytes: MAX_LOGFILE_SIZE, retainedFileCountLimit: MAX_RETAINED_LOGFILES);
-        }
-
-        Logger = LoggerFactory.CreateLogger("OpcPlc");
     }
 
     /// <summary>
@@ -385,7 +332,7 @@ public class OpcPlcServer
         var host = Host.CreateDefaultBuilder(args)
             .ConfigureWebHostDefaults(webBuilder => {
                 webBuilder.UseContentRoot(contentRoot); // Avoid System.InvalidOperationException.
-                webBuilder.UseUrls($"http://*:{Config.WebServerPort}");
+                webBuilder.UseUrls($"http://*:{_config.WebServerPort}");
             }).Build();
 
         return host;
@@ -393,7 +340,7 @@ public class OpcPlcServer
 
     private string GetPort()
     {
-        string port = Config.OpcUa.ServerPort.ToString();
+        string port = _config.OpcUa.ServerPort.ToString();
 
         foreach (var arg in _args)
         {
@@ -413,7 +360,7 @@ public class OpcPlcServer
 
     private void LogLogo()
     {
-        Logger.LogInformation(
+        _logger.LogInformation(
             @"
  ██████╗ ██████╗  ██████╗    ██████╗ ██╗      ██████╗
 ██╔═══██╗██╔══██╗██╔════╝    ██╔══██╗██║     ██╔════╝

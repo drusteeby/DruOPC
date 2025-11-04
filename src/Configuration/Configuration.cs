@@ -5,10 +5,12 @@ using System;
 
 public class OpcPlcConfiguration
 {
+    public const string SectionName = "OpcPlc";
+
     /// <summary>
     /// Name of the application.
     /// </summary>
-    public readonly string ProgramName = "OpcPlc";
+    public string ProgramName { get; set; } = "OpcPlc";
 
     public bool DisableAnonymousAuth { get; set; }
 
