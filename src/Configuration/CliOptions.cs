@@ -17,24 +17,24 @@ using System.Text;
 /// </summary>
 public static class CliOptions
 {
-    private static Mono.Options.OptionSet _options;
+    private static OptionSet _options;
 
     /// <summary>
     /// Initializes configuration from command-line arguments.
     /// </summary>
-    public static (PlcSimulation PlcSimulationInstance, List<string> ExtraArgs) InitConfiguration(
+    public static List<string> InitConfiguration(
         string[] args,
+        PlcSimulation plcSimulation,
         OpcPlcConfiguration config,
         ImmutableList<IPluginNodes> pluginNodes)
     {
-        var plcSimulation = new PlcSimulation(pluginNodes);
 
         _options = BuildOptionSet(config, plcSimulation, pluginNodes);
 
         // Parse the command line.
         List<string> extraArgs = _options.Parse(args);
 
-        return (plcSimulation, extraArgs);
+        return extraArgs;
     }
 
     /// <summary>

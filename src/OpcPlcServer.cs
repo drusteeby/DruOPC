@@ -74,7 +74,8 @@ public class OpcPlcServer : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         LoadPluginNodes();
-        (PlcSimulationInstance, var extraArgs) = CliOptions.InitConfiguration(_args, _config, _pluginNodes);
+        PlcSimulationInstance = new PlcSimulation(_pluginNodes);
+        var extraArgs = CliOptions.InitConfiguration(_args, PlcSimulationInstance, _config, _pluginNodes);
 
         // Show usage if requested
         if (_config.ShowHelp)
