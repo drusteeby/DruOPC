@@ -11,6 +11,7 @@ using OpcPlc.Helpers;
 using OpcPlc.Logging;
 using OpcPlc.PluginNodes.Models;
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO;
@@ -60,12 +61,14 @@ public class OpcPlcServer : BackgroundService
     public OpcPlcServer(
         string[] args,
         IOptions<OpcPlcConfiguration> options,
+        IEnumerable<IPluginNodes> pluginNodes,
         ILoggerFactory loggerFactory,
         ILogger<OpcPlcServer> logger,
         TimeService timeService)
     {
         _args = args;
         _config = options.Value;
+        _pluginNodes = pluginNodes.ToImmutableList();
         LoggerFactory = loggerFactory;
         _logger = logger;
         _timeService = timeService;
@@ -76,7 +79,6 @@ public class OpcPlcServer : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        LoadPluginNodes();
         PlcSimulationInstance = new PlcSimulation(_pluginNodes);
         var extraArgs = CliOptions.InitConfiguration(_args, PlcSimulationInstance, _config, _pluginNodes);
 
@@ -182,22 +184,6 @@ public class OpcPlcServer : BackgroundService
         LogLogo();
 
         await StartPlcServerAndSimulationAsync().ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Load plugin nodes to extend the address space using reflection.
-    /// </summary>
-    private void LoadPluginNodes()
-    {
-        var pluginNodesType = typeof(IPluginNodes);
-
-        _pluginNodes = pluginNodesType.Assembly.ExportedTypes
-            .Where(t => pluginNodesType.IsAssignableFrom(t) &&
-                        !t.IsInterface &&
-                        !t.IsAbstract)
-            .Select(t => Activator.CreateInstance(t, _timeService, _logger))
-            .Cast<IPluginNodes>()
-            .ToImmutableList();
     }
 
     /// <summary>

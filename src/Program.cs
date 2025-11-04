@@ -5,7 +5,10 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using OpcPlc.Configuration;
+using OpcPlc.PluginNodes.Models;
+using Scrutor;
 using System;
 using System.IO;
 
@@ -29,6 +32,19 @@ public static class Program
         builder.Services.AddSingleton(args);
         builder.Services.AddTransient<TimeService>();
         builder.Services.AddHostedService<OpcPlcServer>();
+        builder.Services.AddHostedService<OpcPlcServer>();
+        builder.Services.AddSingleton<ILogger>(container => container.GetService<ILogger<object>>());
+
+        // Register plugin nodes as services
+        builder.Services.Scan(scan => scan
+            .FromAssemblyOf<IPluginNodes>()
+            .AddClasses(classes => classes.AssignableTo<IPluginNodes>())
+            .AsImplementedInterfaces()
+            .WithSingletonLifetime());
+
+        // Register PlcSimulation as a service
+        builder.Services.AddSingleton<PlcSimulation>();
+        builder.Services.AddSingleton<PlcServer>();
 
         var app = builder.Build();
 
