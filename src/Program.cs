@@ -27,6 +27,7 @@ public static class Program
 
         // Register dependencies
         builder.Services.AddSingleton(args);
+        builder.Services.AddTransient<TimeService>();
         builder.Services.AddHostedService<OpcPlcServer>();
 
         var app = builder.Build();

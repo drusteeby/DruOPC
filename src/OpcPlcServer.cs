@@ -28,6 +28,7 @@ public class OpcPlcServer : BackgroundService
     private readonly string[] _args;
     private readonly OpcPlcConfiguration _config;
     private readonly ILogger<OpcPlcServer> _logger;
+    private readonly TimeService _timeService;
     private ImmutableList<IPluginNodes> _pluginNodes;
     private IHost _webHost;
 
@@ -49,7 +50,7 @@ public class OpcPlcServer : BackgroundService
     /// <summary>
     /// Service returning <see cref="DateTime"/> values and <see cref="Timer"/> instances. Mocked in tests.
     /// </summary>
-    public TimeService TimeService { get; set; } = new();
+    public TimeService TimeService => _timeService;
 
     /// <summary>
     /// A flag indicating when the server is up and ready to accept connections.
@@ -60,12 +61,14 @@ public class OpcPlcServer : BackgroundService
         string[] args,
         IOptions<OpcPlcConfiguration> options,
         ILoggerFactory loggerFactory,
-        ILogger<OpcPlcServer> logger)
+        ILogger<OpcPlcServer> logger,
+        TimeService timeService)
     {
         _args = args;
         _config = options.Value;
         LoggerFactory = loggerFactory;
         _logger = logger;
+        _timeService = timeService;
     }
 
     /// <summary>
@@ -192,7 +195,7 @@ public class OpcPlcServer : BackgroundService
             .Where(t => pluginNodesType.IsAssignableFrom(t) &&
                         !t.IsInterface &&
                         !t.IsAbstract)
-            .Select(t => Activator.CreateInstance(t, TimeService, _logger))
+            .Select(t => Activator.CreateInstance(t, _timeService, _logger))
             .Cast<IPluginNodes>()
             .ToImmutableList();
     }
@@ -309,7 +312,7 @@ public class OpcPlcServer : BackgroundService
         _logger.LogInformation("Certificate authentication: {CertAuth}", _config.DisableCertAuth ? "Disabled" : "Enabled");
 
         // Add simple events, alarms, reference test simulation and deterministic alarms.
-        PlcServer = new PlcServer(_config, PlcSimulationInstance, TimeService, _pluginNodes, _logger);
+        PlcServer = new PlcServer(_config, PlcSimulationInstance, _timeService, _pluginNodes, _logger);
         PlcServer.Start(plcApplicationConfiguration);
         _logger.LogInformation("OPC UA Server started");
 
