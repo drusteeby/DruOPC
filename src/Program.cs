@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 public static class Program
 {
@@ -28,6 +29,13 @@ public static class Program
     private static void RunWebApp(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        
+        // Add MVC services for controllers
+        builder.Services.AddControllers();
+        
+        // Register the configuration as a singleton for dependency injection
+        builder.Services.AddSingleton(OpcPlcServer.Config);
+        
         var app = builder.Build();
 
         if (app.Environment.IsDevelopment())
@@ -35,23 +43,11 @@ public static class Program
             app.UseDeveloperExceptionPage();
         }
 
-        // Middleware to serve pn.json (moved from Startup.cs Configure method).
-        app.Run(async context =>
-        {
-            if (context.Request.Method == "GET" &&
-                context.Request.Path == (Program.OpcPlcServer.Config.PnJson[0] != '/' ? "/" : string.Empty) + Program.OpcPlcServer.Config.PnJson &&
-                File.Exists(Program.OpcPlcServer.Config.PnJson))
-            {
-                context.Response.ContentType = "application/json";
-                await context.Response.WriteAsync(await File.ReadAllTextAsync(Program.OpcPlcServer.Config.PnJson).ConfigureAwait(false)).ConfigureAwait(false);
-            }
-            else
-            {
-                context.Response.StatusCode = 404;
-            }
-           });
-   
-           app.Run();
-       }
-   }
+        // Use routing and map controllers
+        app.UseRouting();
+        app.MapControllers();
+
+        app.Run();
+    }
+}
 
