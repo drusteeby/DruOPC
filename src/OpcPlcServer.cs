@@ -1,6 +1,5 @@
 namespace OpcPlc;
 
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -8,7 +7,6 @@ using Opc.Ua;
 using OpcPlc.Configuration;
 using OpcPlc.Extensions;
 using OpcPlc.Helpers;
-using OpcPlc.Logging;
 using OpcPlc.PluginNodes.Models;
 using System;
 using System.Collections.Generic;
@@ -16,7 +14,6 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,23 +27,24 @@ public class OpcPlcServer : BackgroundService
     private readonly OpcPlcConfiguration _config;
     private readonly ILogger<OpcPlcServer> _logger;
     private readonly TimeService _timeService;
-    private ImmutableList<IPluginNodes> _pluginNodes;
-    private IHost _webHost;
+    private readonly ImmutableList<IPluginNodes> _pluginNodes;
+    private readonly IHostApplicationLifetime _lifetime;
+    private readonly IpAddressProvider _ipAddressProvider;
 
     /// <summary>
     /// The LoggerFactory used to create logging objects.
     /// </summary>
-    public ILoggerFactory LoggerFactory { get; set; }
+    public ILoggerFactory LoggerFactory { get; }
 
     /// <summary>
     /// OPC UA server object.
     /// </summary>
-    public PlcServer PlcServer { get; set; }
+    public PlcServer PlcServer { get; private set; }
 
     /// <summary>
     /// Simulation object.
     /// </summary>
-    public PlcSimulation PlcSimulationInstance { get; set; }
+    public PlcSimulation PlcSimulationInstance { get; private set; }
 
     /// <summary>
     /// Service returning <see cref="DateTime"/> values and <see cref="Timer"/> instances. Mocked in tests.
@@ -56,7 +54,7 @@ public class OpcPlcServer : BackgroundService
     /// <summary>
     /// A flag indicating when the server is up and ready to accept connections.
     /// </summary>
-    public bool Ready { get; set; }
+    public bool Ready { get; private set; }
 
     public OpcPlcServer(
         string[] args,
@@ -64,7 +62,9 @@ public class OpcPlcServer : BackgroundService
         IEnumerable<IPluginNodes> pluginNodes,
         ILoggerFactory loggerFactory,
         ILogger<OpcPlcServer> logger,
-        TimeService timeService)
+        TimeService timeService,
+        IHostApplicationLifetime lifetime,
+        IpAddressProvider ipAddressProvider)
     {
         _args = args;
         _config = options.Value;
@@ -72,6 +72,8 @@ public class OpcPlcServer : BackgroundService
         LoggerFactory = loggerFactory;
         _logger = logger;
         _timeService = timeService;
+        _lifetime = lifetime;
+        _ipAddressProvider = ipAddressProvider;
     }
 
     /// <summary>
@@ -86,6 +88,7 @@ public class OpcPlcServer : BackgroundService
         if (_config.ShowHelp)
         {
             _logger.LogInformation(CliOptions.GetUsageHelp(_config.ProgramName));
+            _lifetime.StopApplication();
             return;
         }
 
@@ -133,12 +136,6 @@ public class OpcPlcServer : BackgroundService
             OtelHelper.ConfigureOpenTelemetry(_config.ProgramName, _config.OtlpEndpointUri, _config.OtlpExportProtocol, _config.OtlpExportInterval);
         }
 
-        if (_config.ShowPublisherConfigJsonIp || _config.ShowPublisherConfigJsonPh)
-        {
-            _webHost = CreateHostBuilder(_args);
-            StartWebServer(_webHost);
-        }
-
         try
         {
             await StartPlcServerAsync(stoppingToken).ConfigureAwait(false);
@@ -146,6 +143,7 @@ public class OpcPlcServer : BackgroundService
         catch (Exception ex)
         {
             _logger.LogCritical(ex, "OPC UA server failed unexpectedly");
+            _lifetime.StopApplication();
             throw;
         }
 
@@ -161,12 +159,6 @@ public class OpcPlcServer : BackgroundService
         
         PlcSimulationInstance?.Stop();
         PlcServer?.Stop();
-
-        if (_webHost != null)
-        {
-            await _webHost.StopAsync(cancellationToken).ConfigureAwait(false);
-            _webHost.Dispose();
-        }
 
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -187,21 +179,21 @@ public class OpcPlcServer : BackgroundService
     }
 
     /// <summary>
-    /// Start web server to host pn.json.
+    /// Log web server information.
     /// </summary>
-    private void StartWebServer(IHost host)
+    private void LogWebServerInfo()
     {
         try
         {
-            host.Start();
-
             if (_config.ShowPublisherConfigJsonIp)
             {
-                _logger.LogInformation("Web server started: {PnJsonUri}", $"http://{GetIpAddress()}:{_config.WebServerPort}/{_config.PnJson}");
+                _logger.LogInformation("Web server started: {PnJsonUri}", 
+                    $"http://{_ipAddressProvider.GetIpAddress()}:{_config.WebServerPort}/{_config.PnJson}");
             }
             else if (_config.ShowPublisherConfigJsonPh)
             {
-                _logger.LogInformation("Web server started: {PnJsonUri}", $"http://{_config.OpcUa.Hostname}:{_config.WebServerPort}/{_config.PnJson}");
+                _logger.LogInformation("Web server started: {PnJsonUri}", 
+                    $"http://{_config.OpcUa.Hostname}:{_config.WebServerPort}/{_config.PnJson}");
             }
             else
             {
@@ -210,34 +202,8 @@ public class OpcPlcServer : BackgroundService
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Could not start web server on port {WebServerPort}: {Message}",
-                _config.WebServerPort,
-                e.Message);
+            _logger.LogError(e, "Could not log web server information: {Message}", e.Message);
         }
-    }
-
-    /// <summary>
-    /// Get IP address of first interface, otherwise host name.
-    /// </summary>
-    private string GetIpAddress()
-    {
-        string ip = Dns.GetHostName();
-
-        try
-        {
-            // Ignore System.Net.Internals.SocketExceptionFactory+ExtendedSocketException
-            var hostEntry = Dns.GetHostEntry(ip);
-            if (hostEntry.AddressList.Length > 0)
-            {
-                ip = hostEntry.AddressList[0].ToString();
-            }
-        }
-        catch
-        {
-            // Default to Dns.GetHostName.
-        }
-
-        return ip;
     }
 
     /// <summary>
@@ -251,7 +217,7 @@ public class OpcPlcServer : BackgroundService
         {
             await PnJsonHelper.PrintPublisherConfigJsonAsync(
                 _config.PnJson,
-                $"{GetIpAddress()}:{_config.OpcUa.ServerPort}{_config.OpcUa.ServerPath}",
+                $"{_ipAddressProvider.GetIpAddress()}:{_config.OpcUa.ServerPort}{_config.OpcUa.ServerPath}",
                 !_config.OpcUa.EnableUnsecureTransport,
                 _pluginNodes,
                 _logger).ConfigureAwait(false);
@@ -304,48 +270,6 @@ public class OpcPlcServer : BackgroundService
 
         // Add remaining base simulations.
         PlcSimulationInstance.Start(PlcServer);
-    }
-
-    /// <summary>
-    /// Configure web server.
-    /// </summary>
-    public IHost CreateHostBuilder(string[] args)
-    {
-        var contentRoot = Directory.GetCurrentDirectory();
-        var snapLocation = Environment.GetEnvironmentVariable("SNAP");
-        if (!string.IsNullOrWhiteSpace(snapLocation))
-        {
-            // The application is running as a snap
-            contentRoot = snapLocation;
-        }
-
-        var host = Host.CreateDefaultBuilder(args)
-            .ConfigureWebHostDefaults(webBuilder => {
-                webBuilder.UseContentRoot(contentRoot); // Avoid System.InvalidOperationException.
-                webBuilder.UseUrls($"http://*:{_config.WebServerPort}");
-            }).Build();
-
-        return host;
-    }
-
-    private string GetPort()
-    {
-        string port = _config.OpcUa.ServerPort.ToString();
-
-        foreach (var arg in _args)
-        {
-            if (arg.StartsWith("--pn="))
-            {
-                return arg.Substring("--pn=".Length).Trim();
-            }
-
-            if (arg.StartsWith("--portnum="))
-            {
-                return arg.Substring("--portnum=".Length).Trim();
-            }
-        }
-
-        return port;
     }
 
     private void LogLogo()

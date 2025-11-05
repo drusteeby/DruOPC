@@ -1,6 +1,7 @@
 namespace OpcPlc.Controllers;
 
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using OpcPlc.Configuration;
 using System;
 using System.Threading.Tasks;
@@ -11,9 +12,9 @@ public class PnJsonController : ControllerBase
 {
     private readonly OpcPlcConfiguration _config;
 
-    public PnJsonController(OpcPlcConfiguration config)
+    public PnJsonController(IOptions<OpcPlcConfiguration> options)
     {
-        _config = config;
+        _config = options.Value;
     }
 
     /// <summary>
