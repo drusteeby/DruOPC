@@ -23,11 +23,10 @@ public class OpcPlcServer : BackgroundService
     private const int DefaultMinThreads = 20;
     private const int DefaultCompletionPortThreads = 20;
 
-    private readonly string[] _args;
     private readonly OpcPlcConfiguration _config;
     private readonly ILogger<OpcPlcServer> _logger;
     private readonly TimeService _timeService;
-    private readonly ImmutableList<IPluginNodes> _pluginNodes;
+    private readonly PlcSimulation _plcSimulation;
     private readonly IHostApplicationLifetime _lifetime;
     private readonly IpAddressProvider _ipAddressProvider;
 
@@ -44,7 +43,7 @@ public class OpcPlcServer : BackgroundService
     /// <summary>
     /// Simulation object.
     /// </summary>
-    public PlcSimulation PlcSimulationInstance { get; private set; }
+    public PlcSimulation PlcSimulationInstance => _plcSimulation;
 
     /// <summary>
     /// Service returning <see cref="DateTime"/> values and <see cref="Timer"/> instances. Mocked in tests.
@@ -57,18 +56,16 @@ public class OpcPlcServer : BackgroundService
     public bool Ready { get; private set; }
 
     public OpcPlcServer(
-        string[] args,
         IOptions<OpcPlcConfiguration> options,
-        IEnumerable<IPluginNodes> pluginNodes,
+        PlcSimulation plcSimulation,
         ILoggerFactory loggerFactory,
         ILogger<OpcPlcServer> logger,
         TimeService timeService,
         IHostApplicationLifetime lifetime,
         IpAddressProvider ipAddressProvider)
     {
-        _args = args;
         _config = options.Value;
-        _pluginNodes = pluginNodes.ToImmutableList();
+        _plcSimulation = plcSimulation;
         LoggerFactory = loggerFactory;
         _logger = logger;
         _timeService = timeService;
@@ -81,24 +78,7 @@ public class OpcPlcServer : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        PlcSimulationInstance = new PlcSimulation(_pluginNodes);
-        var extraArgs = CliOptions.InitConfiguration(_args, PlcSimulationInstance, _config, _pluginNodes);
-
-        // Show usage if requested
-        if (_config.ShowHelp)
-        {
-            _logger.LogInformation(CliOptions.GetUsageHelp(_config.ProgramName));
-            _lifetime.StopApplication();
-            return;
-        }
-
-        // Validate and parse extra arguments.
-        if (extraArgs.Count > 0)
-        {
-            _logger.LogWarning("Found one or more invalid command line arguments: {InvalidArgs}", string.Join(" ", extraArgs));
-            _logger.LogInformation(CliOptions.GetUsageHelp(_config.ProgramName));
-        }
-
+        LogWebServerInfo();
         LogLogo();
 
         ThreadPool.SetMinThreads(DefaultMinThreads, DefaultCompletionPortThreads);
@@ -178,33 +158,7 @@ public class OpcPlcServer : BackgroundService
         await StartPlcServerAndSimulationAsync().ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Log web server information.
-    /// </summary>
-    private void LogWebServerInfo()
-    {
-        try
-        {
-            if (_config.ShowPublisherConfigJsonIp)
-            {
-                _logger.LogInformation("Web server started: {PnJsonUri}", 
-                    $"http://{_ipAddressProvider.GetIpAddress()}:{_config.WebServerPort}/{_config.PnJson}");
-            }
-            else if (_config.ShowPublisherConfigJsonPh)
-            {
-                _logger.LogInformation("Web server started: {PnJsonUri}", 
-                    $"http://{_config.OpcUa.Hostname}:{_config.WebServerPort}/{_config.PnJson}");
-            }
-            else
-            {
-                _logger.LogInformation("Web server started on port {WebServerPort}", _config.WebServerPort);
-            }
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Could not log web server information: {Message}", e.Message);
-        }
-    }
+    
 
     /// <summary>
     /// Start the server.
@@ -219,7 +173,7 @@ public class OpcPlcServer : BackgroundService
                 _config.PnJson,
                 $"{_ipAddressProvider.GetIpAddress()}:{_config.OpcUa.ServerPort}{_config.OpcUa.ServerPath}",
                 !_config.OpcUa.EnableUnsecureTransport,
-                _pluginNodes,
+                PlcSimulationInstance.PluginNodes,
                 _logger).ConfigureAwait(false);
         }
         else if (_config.ShowPublisherConfigJsonPh)
@@ -228,7 +182,7 @@ public class OpcPlcServer : BackgroundService
                 _config.PnJson,
                 $"{_config.OpcUa.Hostname}:{_config.OpcUa.ServerPort}{_config.OpcUa.ServerPath}",
                 !_config.OpcUa.EnableUnsecureTransport,
-                _pluginNodes,
+                PlcSimulationInstance.PluginNodes,
                 _logger).ConfigureAwait(false);
         }
 
@@ -264,12 +218,40 @@ public class OpcPlcServer : BackgroundService
         _logger.LogInformation("Certificate authentication: {CertAuth}", _config.DisableCertAuth ? "Disabled" : "Enabled");
 
         // Add simple events, alarms, reference test simulation and deterministic alarms.
-        PlcServer = new PlcServer(_config, PlcSimulationInstance, _timeService, _pluginNodes, _logger);
+        PlcServer = new PlcServer(_config, PlcSimulationInstance, _timeService, PlcSimulationInstance.PluginNodes, _logger);
         PlcServer.Start(plcApplicationConfiguration);
         _logger.LogInformation("OPC UA Server started");
 
         // Add remaining base simulations.
         PlcSimulationInstance.Start(PlcServer);
+    }
+
+    /// <summary>
+    /// Log web server information.
+    /// </summary>
+    private void LogWebServerInfo()
+    {
+        try
+        {
+            if (_config.ShowPublisherConfigJsonIp)
+            {
+                _logger.LogInformation("Web server started: {PnJsonUri}",
+                    $"http://{_ipAddressProvider.GetIpAddress()}:{_config.WebServerPort}/{_config.PnJson}");
+            }
+            else if (_config.ShowPublisherConfigJsonPh)
+            {
+                _logger.LogInformation("Web server started: {PnJsonUri}",
+                    $"http://{_config.OpcUa.Hostname}:{_config.WebServerPort}/{_config.PnJson}");
+            }
+            else
+            {
+                _logger.LogInformation("Web server started on port {WebServerPort}", _config.WebServerPort);
+            }
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Could not log web server information: {Message}", e.Message);
+        }
     }
 
     private void LogLogo()

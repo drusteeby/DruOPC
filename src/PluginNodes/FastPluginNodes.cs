@@ -1,7 +1,9 @@
 namespace OpcPlc.PluginNodes;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Opc.Ua;
+using OpcPlc.Configuration;
 using OpcPlc.PluginNodes.Models;
 using System;
 using System.Collections.Generic;
@@ -11,16 +13,18 @@ using System.Timers;
 /// <summary>
 /// Nodes with fast changing values.
 /// </summary>
-public class FastPluginNodes(TimeService timeService, ILogger logger) : PluginNodeBase(timeService, logger), IPluginNodes
+public class FastPluginNodes : PluginNodeBase, IPluginNodes
 {
-    private uint NodeCount { get; set; } = 1;
-    private uint NodeRate { get; set; } = 1000; // ms.
-    private NodeType NodeType { get; set; } = NodeType.UInt;
-    private string NodeMinValue { get; set; }
-    private string NodeMaxValue { get; set; }
-    private bool NodeRandomization { get; set; }
-    private string NodeStepSize { get; set; } = "1";
-    private uint NodeSamplingInterval { get; set; } // ms.
+    private readonly FastNodesConfiguration _config;
+
+    private uint NodeCount => _config.NodeCount;
+    private uint NodeRate => _config.VeryFastRate; // Use VeryFastRate for millisecond precision
+    private NodeType NodeType { get; set; }
+    private string NodeMinValue => _config.NodeMinValue;
+    private string NodeMaxValue => _config.NodeMaxValue;
+    private bool NodeRandomization => _config.NodeRandomization;
+    private string NodeStepSize => _config.NodeStepSize;
+    private uint NodeSamplingInterval => _config.NodeSamplingInterval;
 
     private PlcNodeManager _plcNodeManager;
     private SlowFastCommon _slowFastCommon;
@@ -29,52 +33,11 @@ public class FastPluginNodes(TimeService timeService, ILogger logger) : PluginNo
     private ITimer _nodeGenerator;
     private bool _updateNodes = true;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
+    public FastPluginNodes(TimeService timeService, ILogger<FastPluginNodes> logger, IOptions<OpcPlcConfiguration> options)
+        : base(timeService, logger)
     {
-        optionSet.Add(
-            "fn|fastnodes=",
-            $"number of fast nodes.\nDefault: {NodeCount}",
-            (uint i) => NodeCount = i);
-
-        optionSet.Add(
-            "fr|fastrate=",
-            $"rate in seconds to change fast nodes.\nDefault: {NodeRate / 1000}",
-            (uint i) => NodeRate = i * 1000);
-
-        optionSet.Add(
-            "ft|fasttype=",
-            $"data type of fast nodes ({string.Join("|", Enum.GetNames(typeof(NodeType)))}).\nDefault: {NodeType}",
-            (string s) => NodeType = SlowFastCommon.ParseNodeType(s));
-
-        optionSet.Add(
-            "ftl|fasttypelowerbound=",
-            $"lower bound of data type of fast nodes.\nDefault: min value of node type.",
-            (string s) => NodeMinValue = s);
-
-        optionSet.Add(
-            "ftu|fasttypeupperbound=",
-            $"upper bound of data type of fast nodes.\nDefault: max value of node type.",
-            (string s) => NodeMaxValue = s);
-
-        optionSet.Add(
-            "ftr|fasttyperandomization=",
-            $"randomization of fast nodes value.\nDefault: {NodeRandomization}",
-            (string s) => NodeRandomization = bool.Parse(s));
-
-        optionSet.Add(
-            "fts|fasttypestepsize=",
-            $"step or increment size of fast nodes value.\nDefault: {NodeStepSize}",
-            (string s) => NodeStepSize = SlowFastCommon.ParseStepSize(s));
-
-        optionSet.Add(
-            "fsi|fastnodesamplinginterval=",
-            $"rate in milliseconds for pn.json client to sample fast nodes.\nDefault: {NodeSamplingInterval}",
-            (uint i) => NodeSamplingInterval = i);
-
-        optionSet.Add(
-            "vfr|veryfastrate=",
-            $"rate in milliseconds to change fast nodes.\nDefault: {NodeRate}",
-            (uint i) => NodeRate = i);
+        _config = options.Value.FastNodes;
+        NodeType = SlowFastCommon.ParseNodeType(_config.NodeType);
     }
 
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)

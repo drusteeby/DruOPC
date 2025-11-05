@@ -1,7 +1,9 @@
 namespace OpcPlc.PluginNodes;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Opc.Ua;
+using OpcPlc.Configuration;
 using OpcPlc.PluginNodes.Models;
 using System;
 using System.Collections.Generic;
@@ -10,16 +12,18 @@ using System.Timers;
 /// <summary>
 /// Nodes with slow changing values.
 /// </summary>
-public class SlowPluginNodes(TimeService timeService, ILogger logger) : PluginNodeBase(timeService, logger), IPluginNodes
+public class SlowPluginNodes : PluginNodeBase, IPluginNodes
 {
-    private uint NodeCount { get; set; } = 1;
-    private uint NodeRate { get; set; } = 10000; // ms.
-    private NodeType NodeType { get; set; } = NodeType.UInt;
-    private string NodeMinValue { get; set; }
-    private string NodeMaxValue { get; set; }
-    private bool NodeRandomization { get; set; }
-    private string NodeStepSize { get; set; } = "1";
-    private uint NodeSamplingInterval { get; set; } // ms.
+    private readonly SlowNodesConfiguration _config;
+
+    private uint NodeCount => _config.NodeCount;
+    private uint NodeRate => _config.NodeRate * 1000; // Convert seconds to ms
+    private NodeType NodeType { get; set; }
+    private string NodeMinValue => _config.NodeMinValue;
+    private string NodeMaxValue => _config.NodeMaxValue;
+    private bool NodeRandomization => _config.NodeRandomization;
+    private string NodeStepSize => _config.NodeStepSize;
+    private uint NodeSamplingInterval => _config.NodeSamplingInterval;
 
     private PlcNodeManager _plcNodeManager;
     private SlowFastCommon _slowFastCommon;
@@ -28,47 +32,11 @@ public class SlowPluginNodes(TimeService timeService, ILogger logger) : PluginNo
     private ITimer _nodeGenerator;
     private bool _updateNodes = true;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
+    public SlowPluginNodes(TimeService timeService, ILogger<SlowPluginNodes> logger, IOptions<OpcPlcConfiguration> options)
+        : base(timeService, logger)
     {
-        optionSet.Add(
-            "sn|slownodes=",
-            $"number of slow nodes.\nDefault: {NodeCount}",
-            (uint i) => NodeCount = i);
-
-        optionSet.Add(
-            "sr|slowrate=",
-            $"rate in seconds to change slow nodes.\nDefault: {NodeRate / 1000}",
-            (uint i) => NodeRate = i * 1000);
-
-        optionSet.Add(
-            "st|slowtype=",
-            $"data type of slow nodes ({string.Join("|", Enum.GetNames(typeof(NodeType)))}).\nDefault: {NodeType}",
-            (string s) => NodeType = SlowFastCommon.ParseNodeType(s));
-
-        optionSet.Add(
-            "stl|slowtypelowerbound=",
-            $"lower bound of data type of slow nodes.\nDefault: min value of node type.",
-            (string s) => NodeMinValue = s);
-
-        optionSet.Add(
-            "stu|slowtypeupperbound=",
-            $"upper bound of data type of slow nodes.\nDefault: max value of node type.",
-            (string s) => NodeMaxValue = s);
-
-        optionSet.Add(
-            "str|slowtyperandomization=",
-            $"randomization of slow nodes value.\nDefault: {NodeRandomization}",
-            (string s) => NodeRandomization = bool.Parse(s));
-
-        optionSet.Add(
-            "sts|slowtypestepsize=",
-            $"step or increment size of slow nodes value.\nDefault: {NodeStepSize}",
-            (string s) => NodeStepSize = SlowFastCommon.ParseStepSize(s));
-
-        optionSet.Add(
-            "ssi|slownodesamplinginterval=",
-            $"rate in milliseconds for pn.json client to sample slow nodes.\nDefault: {NodeSamplingInterval}",
-            (uint i) => NodeSamplingInterval = i);
+        _config = options.Value.SlowNodes;
+        NodeType = SlowFastCommon.ParseNodeType(_config.NodeType);
     }
 
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)

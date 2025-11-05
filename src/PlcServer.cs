@@ -454,7 +454,7 @@ public partial class PlcServer : StandardServer
             nodeManagers.Add(SimulationNodeManager);
         }
 
-        if (PlcSimulation.DeterministicAlarmSimulationFile != null)
+        if (!string.IsNullOrEmpty(PlcSimulation.DeterministicAlarmSimulationFile))
         {
             var scriptFileName = PlcSimulation.DeterministicAlarmSimulationFile;
             if (string.IsNullOrWhiteSpace(scriptFileName))

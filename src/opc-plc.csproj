@@ -102,9 +102,13 @@
 
   <ItemGroup>
     <Folder Include="AlarmCondition\UnderlyingSystem\" />
+    <Folder Include="Configuration\OptionGroups\" />
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="appsettings.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="Microsoft.IoTEdge.OpcPlc.targets" PackagePath="build/Microsoft.IoTEdge.OpcPlc.targets" />
     <Content Include="Boilers/**/*.*">
       <PackagePath>contentFiles\Boilers</PackagePath>
@@ -115,6 +119,7 @@
     <Content Include="SimpleEvent/**/*.*">
       <PackagePath>contentFiles\SimpleEvent</PackagePath>
     </Content>
+    <None Remove="appsettings.json" />
     <Content Include="nodesfile.json">
       <PackagePath>contentFiles</PackagePath>
     </Content>

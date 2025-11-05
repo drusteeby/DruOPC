@@ -1,7 +1,9 @@
 namespace OpcPlc.PluginNodes;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Opc.Ua;
+using OpcPlc.Configuration;
 using OpcPlc.PluginNodes.Models;
 using System;
 using System.Collections.Generic;
@@ -9,9 +11,9 @@ using System.Collections.Generic;
 /// <summary>
 /// Nodes with values: Cycling step-up, alternating boolean, random signed 32-bit integer and random unsigend 32-bit integer.
 /// </summary>
-public class DataPluginNodes(TimeService timeService, ILogger logger) : PluginNodeBase(timeService, logger), IPluginNodes
+public class DataPluginNodes : PluginNodeBase, IPluginNodes
 {
-    private bool _isEnabled = true;
+    private readonly bool _isEnabled;
     private PlcNodeManager _plcNodeManager;
     private SimulatedVariableNode<uint> _stepUpNode;
     private SimulatedVariableNode<bool> _alternatingBooleanNode;
@@ -22,12 +24,10 @@ public class DataPluginNodes(TimeService timeService, ILogger logger) : PluginNo
     private int _stepUpCycleInPhase;
     private int _alternatingBooleanCycleInPhase;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
+    public DataPluginNodes(TimeService timeService, ILogger<DataPluginNodes> logger, IOptions<OpcPlcConfiguration> options)
+        : base(timeService, logger)
     {
-        optionSet.Add(
-            "nv|nodatavalues",
-            $"do not generate data values.\nDefault: {!_isEnabled}",
-            (string s) => _isEnabled = s == null);
+        _isEnabled = !options.Value.DataGeneration.NoDataValues;
     }
 
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)

@@ -12,6 +12,7 @@ using Scrutor;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 
 public static class Program
@@ -26,9 +27,27 @@ public static class Program
         // Configure content root for snap environment
         ConfigureContentRoot(builder);
 
-        // Configure options from appsettings.json and command line
+        // Configure options from appsettings.json
         builder.Services.Configure<OpcPlcConfiguration>(
             builder.Configuration.GetSection(OpcPlcConfiguration.SectionName));
+
+        // Validate configuration
+        var config = builder.Configuration.GetSection(OpcPlcConfiguration.SectionName).Get<OpcPlcConfiguration>();
+        if (config == null)
+        {
+            Console.WriteLine("Error: Could not load configuration from appsettings.json");
+            Environment.Exit(1);
+            return;
+        }
+
+        // Show usage if requested
+        if (config.ShowHelp)
+        {
+            Console.WriteLine("OPC PLC Server - Configuration is now managed via appsettings.json");
+            Console.WriteLine("Please edit appsettings.json to configure the server");
+            Environment.Exit(0);
+            return;
+        }
 
         // Configure web server URLs conditionally
         ConfigureWebServer(builder);
@@ -81,17 +100,16 @@ public static class Program
         // Configure URLs after binding by using a lambda that reads from IOptions
         builder.WebHost.ConfigureKestrel((context, serverOptions) =>
         {
-            var config = context.Configuration.GetSection(OpcPlcConfiguration.SectionName);
+            var config = context.Configuration.Get<OpcPlcConfiguration>();          
+
             
-            var showPublisherConfigJsonIp = config.GetValue<bool>("ShowPublisherConfigJsonIp");
-            var showPublisherConfigJsonPh = config.GetValue<bool>("ShowPublisherConfigJsonPh");
-            var webServerPort = config.GetValue<uint?>("WebServerPort") ?? 8080;
-            
-            if (showPublisherConfigJsonIp || showPublisherConfigJsonPh)
+            if (config.ShowPublisherConfigJsonIp || config.ShowPublisherConfigJsonPh)
             {
-                serverOptions.ListenAnyIP((int)webServerPort);
-            }
+                serverOptions.ListenAnyIP((int)config.WebServerPort);
+            }  
         });
-    } 
+    }
+
+    
 }
 

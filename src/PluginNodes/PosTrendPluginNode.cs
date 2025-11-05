@@ -1,7 +1,9 @@
 namespace OpcPlc.PluginNodes;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Opc.Ua;
+using OpcPlc.Configuration;
 using OpcPlc.Helpers;
 using OpcPlc.PluginNodes.Models;
 using System;
@@ -10,9 +12,9 @@ using System.Collections.Generic;
 /// <summary>
 /// Node with a value that shows a positive trend.
 /// </summary>
-public class PosTrendPluginNode(TimeService timeService, ILogger logger) : PluginNodeBase(timeService, logger), IPluginNodes
+public class PosTrendPluginNode : PluginNodeBase, IPluginNodes
 {
-    private bool _isEnabled = true;
+    private readonly bool _isEnabled;
     private PlcNodeManager _plcNodeManager;
     private SimulatedVariableNode<double> _node;
     private readonly Random _random = new Random();
@@ -21,12 +23,10 @@ public class PosTrendPluginNode(TimeService timeService, ILogger logger) : Plugi
     private int _posTrendAnomalyPhase;
     private const double TREND_BASEVALUE = 100.0;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
+    public PosTrendPluginNode(TimeService timeService, ILogger<PosTrendPluginNode> logger, IOptions<OpcPlcConfiguration> options)
+        : base(timeService, logger)
     {
-        optionSet.Add(
-            "np|nopostrend",
-            $"do not generate positive trend data.\nDefault: {!_isEnabled}",
-            (string s) => _isEnabled = s == null);
+        _isEnabled = !options.Value.DataGeneration.NoPosTrend;
     }
 
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)

@@ -73,7 +73,7 @@ public class PlcSimulatorFixture
     public PlcSimulatorFixture(string[] args)
     {
         _args = args ?? Array.Empty<string>();
-        _opcPlcServer = new OpcPlcServer();
+        
     }
 
     /// <summary>
@@ -83,7 +83,7 @@ public class PlcSimulatorFixture
     public async Task StartAsync()
     {
         Reset();
-
+        _opcPlcServer = new OpcPlcServer()
         _opcPlcServer.LoggerFactory = LoggingProvider.CreateDefaultLoggerFactory(LogLevel.Information);
         _opcPlcServer.Logger = new TestLogger<PlcSimulatorFixture>(TestContext.Progress, new SyslogFormatter(new SyslogFormatterOptions()));
 
