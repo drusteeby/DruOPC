@@ -1,8 +1,10 @@
 namespace OpcPlc.PluginNodes;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Opc.Ua;
 using Opc.Ua.DI;
+using OpcPlc.Configuration;
 using OpcPlc.Helpers;
 using OpcPlc.PluginNodes.Models;
 using System;
@@ -16,8 +18,10 @@ using System.Timers;
 /// <summary>
 /// Boiler that inherits from DI companion spec.
 /// </summary>
-public class Boiler2PluginNodes(TimeService timeService, ILogger logger) : PluginNodeBase(timeService, logger), IPluginNodes
+public class Boiler2PluginNodes : PluginNodeBase, IPluginNodes
 {
+    private readonly Boiler2Configuration _config;
+
     private PlcNodeManager _plcNodeManager;
     private BaseDataVariableState _tempSpeedDegreesPerSecNode;
     private BaseDataVariableState _baseTempDegreesNode;
@@ -37,49 +41,23 @@ public class Boiler2PluginNodes(TimeService timeService, ILogger logger) : Plugi
     private OpcPlc.ITimer _maintenanceGenerator;
     private OpcPlc.ITimer _overheatGenerator;
 
-    private float _tempSpeedDegreesPerSec = 1.0f;
-    private float _baseTempDegrees = 10.0f;
-    private float _targetTempDegrees = 80.0f;
-    private TimeSpan _maintenanceInterval = TimeSpan.FromSeconds(300); // 5 min.
-    private TimeSpan _overheatInterval = TimeSpan.FromSeconds(120); // 2 min.
+    private float _tempSpeedDegreesPerSec => _config.TemperatureSpeed;
+    private float _baseTempDegrees => _config.BaseTemperature;
+    private float _targetTempDegrees => _config.TargetTemperature;
+    private TimeSpan _maintenanceInterval => TimeSpan.FromSeconds(_config.MaintenanceInterval);
+    private TimeSpan _overheatInterval => TimeSpan.FromSeconds(_config.OverheatInterval);
 
     private bool _isOverheated;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
+    public Boiler2PluginNodes(TimeService timeService, ILogger<Boiler2PluginNodes> logger, IOptions<OpcPlcConfiguration> options)
+        : base(timeService, logger)
     {
-        optionSet.Add(
-            "b2ts|boiler2tempspeed=",
-            $"Boiler #2 temperature change speed in degrees per second.\nDefault: {_tempSpeedDegreesPerSec}",
-            (string s) => _tempSpeedDegreesPerSec = CliHelper.ParseFloat(s, min: 1.0f, max: 10.0f, optionName: "boiler2tempspeed", digits: 1));
-
-        optionSet.Add(
-            "b2bt|boiler2basetemp=",
-            $"Boiler #2 base temperature to reach when not heating.\nDefault: {_baseTempDegrees}",
-            (string s) => _baseTempDegrees = CliHelper.ParseFloat(s, min: 1.0f, max: float.MaxValue, optionName: "boiler2basetemp", digits: 1));
-
-        optionSet.Add(
-            "b2tt|boiler2targettemp=",
-            $"Boiler #2 target temperature to reach when heating.\nDefault: {_targetTempDegrees}",
-            (string s) => _targetTempDegrees = CliHelper.ParseFloat(s, min: _baseTempDegrees + 10.0f, max: float.MaxValue, optionName: "boiler2targettemp", digits: 1));
-
-        optionSet.Add(
-            "b2mi|boiler2maintinterval=",
-            $"Boiler #2 required maintenance interval in seconds.\nDefault: {_maintenanceInterval.TotalSeconds}",
-            (string s) => _maintenanceInterval = TimeSpan.FromSeconds(CliHelper.ParseInt(s, min: 1, max: int.MaxValue, optionName: "boiler2maintinterval")));
-
-        optionSet.Add(
-            "b2oi|boiler2overheatinterval=",
-            $"Boiler #2 overheat interval in seconds.\nDefault: {_overheatInterval.TotalSeconds}",
-            (string s) => _overheatInterval = TimeSpan.FromSeconds(CliHelper.ParseInt(s, min: 1, max: int.MaxValue, optionName: "boiler2overheatinterval")));
+        _config = options.Value.Boiler2;
     }
 
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)
     {
-        // Check again if targetTemp is within range, because the minimum uses baseTemp as lower bound and
-        // the order in which the CLI options are specified affects the calculation.
-        _ = CliHelper.ParseFloat(_targetTempDegrees.ToString(), min: _baseTempDegrees + 10.0f, max: float.MaxValue, optionName: "boiler2targettemp", digits: 1);
-
         _plcNodeManager = plcNodeManager;
 
         AddNodes();
@@ -199,17 +177,17 @@ public class Boiler2PluginNodes(TimeService timeService, ILogger logger) : Plugi
 
     private ServiceResult OnWriteMaintenanceIntervalInSeconds(ISystemContext context, NodeState node, ref object value)
     {
-        _maintenanceInterval = TimeSpan.FromSeconds((uint)value);
+        var newInterval = TimeSpan.FromSeconds((uint)value);
         _maintenanceGenerator?.Dispose();
-        _maintenanceGenerator = _timeService.NewTimer(UpdateMaintenance, intervalInMilliseconds: (uint)_maintenanceInterval.TotalMilliseconds);
+        _maintenanceGenerator = _timeService.NewTimer(UpdateMaintenance, intervalInMilliseconds: (uint)newInterval.TotalMilliseconds);
         return ServiceResult.Good;
     }
 
     private ServiceResult OnWriteOverheatIntervalInSeconds(ISystemContext context, NodeState node, ref object value)
     {
-        _overheatInterval = TimeSpan.FromSeconds((uint)value);
+        var newInterval = TimeSpan.FromSeconds((uint)value);
         _overheatGenerator?.Dispose();
-        _overheatGenerator = _timeService.NewTimer(UpdateOverheat, intervalInMilliseconds: (uint)_overheatInterval.TotalMilliseconds);
+        _overheatGenerator = _timeService.NewTimer(UpdateOverheat, intervalInMilliseconds: (uint)newInterval.TotalMilliseconds);
         return ServiceResult.Good;
     }
 

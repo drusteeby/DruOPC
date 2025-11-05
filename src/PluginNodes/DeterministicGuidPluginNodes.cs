@@ -1,7 +1,9 @@
 namespace OpcPlc.PluginNodes;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Opc.Ua;
+using OpcPlc.Configuration;
 using OpcPlc.Helpers;
 using OpcPlc.PluginNodes.Models;
 using System;
@@ -10,22 +12,20 @@ using System.Collections.Generic;
 /// <summary>
 /// Nodes with deterministic GUIDs as ID.
 /// </summary>
-public class DeterministicGuidPluginNodes(TimeService timeService, ILogger logger) : PluginNodeBase(timeService, logger), IPluginNodes
+public class DeterministicGuidPluginNodes : PluginNodeBase, IPluginNodes
 {
     private readonly DeterministicGuid _deterministicGuid = new ();
+    private readonly uint _nodeCount;
     private PlcNodeManager _plcNodeManager;
     private SimulatedVariableNode<uint>[] _nodes;
 
-    private static uint NodeCount { get; set; } = 1;
     private uint NodeRate { get; set; } = 1000; // ms.
     private NodeType NodeType { get; set; } = NodeType.UInt;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
+    public DeterministicGuidPluginNodes(TimeService timeService, ILogger<DeterministicGuidPluginNodes> logger, IOptions<OpcPlcConfiguration> options)
+        : base(timeService, logger)
     {
-        optionSet.Add(
-            "gn|guidnodes=",
-            $"number of nodes with deterministic GUID IDs.\nDefault: {NodeCount}",
-            (uint i) => NodeCount = i);
+        _nodeCount = options.Value.GuidNodes.NodeCount;
     }
 
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)
@@ -59,16 +59,16 @@ public class DeterministicGuidPluginNodes(TimeService timeService, ILogger logge
 
     private void AddNodes(FolderState folder)
     {
-        _nodes = new SimulatedVariableNode<uint>[NodeCount];
-        var nodes = new List<NodeWithIntervals>((int)NodeCount);
+        _nodes = new SimulatedVariableNode<uint>[_nodeCount];
+        var nodes = new List<NodeWithIntervals>((int)_nodeCount);
 
-        if (NodeCount > 0)
+        if (_nodeCount > 0)
         {
-            _logger.LogInformation($"Creating {NodeCount} GUID node(s) of type: {NodeType}");
+            _logger.LogInformation($"Creating {_nodeCount} GUID node(s) of type: {NodeType}");
             _logger.LogInformation($"Node values will change every {NodeRate} ms");
         }
 
-        for (int i = 0; i < NodeCount; i++)
+        for (int i = 0; i < _nodeCount; i++)
         {
             Guid id = _deterministicGuid.NewGuid();
 

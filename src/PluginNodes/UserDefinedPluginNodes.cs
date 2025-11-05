@@ -1,9 +1,11 @@
 namespace OpcPlc.PluginNodes;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Opc.Ua;
+using OpcPlc.Configuration;
 using OpcPlc.Helpers;
 using OpcPlc.PluginNodes.Models;
 using System;
@@ -14,17 +16,15 @@ using System.Linq;
 /// <summary>
 /// Nodes that are configured via JSON file.
 /// </summary>
-public class UserDefinedPluginNodes(TimeService timeService, ILogger logger) : PluginNodeBase(timeService, logger), IPluginNodes
+public class UserDefinedPluginNodes : PluginNodeBase, IPluginNodes
 {
-    private string _nodesFileName;
+    private readonly string _nodesFileName;
     private PlcNodeManager _plcNodeManager;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
+    public UserDefinedPluginNodes(TimeService timeService, ILogger<UserDefinedPluginNodes> logger, IOptions<OpcPlcConfiguration> options)
+        : base(timeService, logger)
     {
-        optionSet.Add(
-            "nf|nodesfile=",
-            "the filename that contains the list of nodes to be created in the OPC UA address space.",
-            (string s) => _nodesFileName = s);
+        _nodesFileName = options.Value.NodesFile;
     }
 
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)
