@@ -101,7 +101,7 @@ public class PosTrendPluginNode : PluginNodeBase, IPluginNodes
 
     /// <summary>
     /// Generates a sine wave with spikes at a configurable cycle in the phase.
-    /// Called each SimulationCycleLength msec.
+    /// Called each SimulationCycleLength ms.
     /// </summary>
     private double PosTrendGenerator(double value)
     {

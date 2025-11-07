@@ -156,6 +156,23 @@ public partial class PlcServer : StandardServer
 
             return responseHeader;
         }
+        catch (ServiceResultException ex) when (ex.StatusCode == StatusCodes.BadServerHalted)
+        {
+            // Handle when a client attempts to reconnect while the server is still starting up or halting.
+            LogCreateSessionWhileHalted();
+
+            sessionId = null;
+            authenticationToken = null;
+            revisedSessionTimeout = 0;
+            serverNonce = Array.Empty<byte>();
+            serverCertificate = Array.Empty<byte>();
+            serverEndpoints = new EndpointDescriptionCollection();
+            serverSoftwareCertificates = new SignedSoftwareCertificateCollection();
+            serverSignature = new SignatureData();
+            maxRequestMessageSize = 0;
+
+            return new ResponseHeader { ServiceResult = StatusCodes.BadServerHalted };
+        }
         catch (Exception ex)
         {
             MetricsHelper.RecordTotalErrors(nameof(CreateSession));
@@ -415,8 +432,14 @@ public partial class PlcServer : StandardServer
         // API to set the encodable factory and it is not possible to provide an own implementation, because other classes
         // require the StandardServer or ServerInternalData as objects, so we need to use reflection to set it.
         var serverInternalDataField = typeof(StandardServer).GetField("m_serverInternal", BindingFlags.Instance | BindingFlags.NonPublic);
-        var encodableFactoryField = serverInternalDataField.FieldType.GetField("m_factory", BindingFlags.Instance | BindingFlags.NonPublic);
-        encodableFactoryField.SetValue(server, new EncodeableFactory(false));
+        if (serverInternalDataField != null)
+        {
+            var encodableFactoryField = serverInternalDataField.FieldType.GetField("m_factory", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (encodableFactoryField != null)
+            {
+                encodableFactoryField.SetValue(server, new EncodeableFactory(false));
+            }
+        }
 
         // Add encodable complex types.
         server.Factory.AddEncodeableTypes(Assembly.GetExecutingAssembly());
@@ -536,7 +559,7 @@ public partial class PlcServer : StandardServer
 
         // it is up to the application to decide how to validate user identity tokens.
         // this function creates validator for X509 identity tokens.
-        CreateUserIdentityValidators(configuration);
+        CreateUserIdentityValidatorAsync(configuration).GetAwaiter().GetResult();
     }
 
     protected override void OnServerStarted(IServerInternal server)
@@ -585,18 +608,21 @@ public partial class PlcServer : StandardServer
 
             if (currentSessions.Count > 0)
             {
-                // provide some time for the connected clients to detect the shutdown state.
-                ServerInternal.Status.Value.ShutdownReason = new LocalizedText(string.Empty, "Application closed."); // Invariant.
-                ServerInternal.Status.Variable.ShutdownReason.Value = new LocalizedText(string.Empty, "Application closed."); // Invariant.
-                ServerInternal.Status.Value.State = ServerState.Shutdown;
-                ServerInternal.Status.Variable.State.Value = ServerState.Shutdown;
-                ServerInternal.Status.Variable.ClearChangeMasks(ServerInternal.DefaultSystemContext, true);
+                // Provide some time for the connected clients to detect the shutdown state.
+                // For newest stack: var shutdownReason = new LocalizedText(string.Empty, "Application closed."); // Invariant.
 
                 for (uint secondsUntilShutdown = PlcShutdownWaitSeconds; secondsUntilShutdown > 0; secondsUntilShutdown--)
                 {
                     ServerInternal.Status.Value.SecondsTillShutdown = secondsUntilShutdown;
                     ServerInternal.Status.Variable.SecondsTillShutdown.Value = secondsUntilShutdown;
                     ServerInternal.Status.Variable.ClearChangeMasks(ServerInternal.DefaultSystemContext, includeChildren: true);
+
+                    // For newest stack:
+                    //ServerInternal.UpdateServerStatus(status => {
+                    //    status.Value.State = ServerState.Shutdown;
+                    //    status.Value.ShutdownReason = shutdownReason;
+                    //    status.Value.SecondsTillShutdown = secondsUntilShutdown;
+                    //});
 
                     Thread.Sleep(TimeSpan.FromSeconds(1));
                 }
@@ -731,10 +757,8 @@ public partial class PlcServer : StandardServer
                 .FirstOrDefault(s => s.Id == subscriptionId);
             if (subscription != null)
             {
-                var expireMethod = typeof(SubscriptionManager).GetMethod("SubscriptionExpired",
-                    BindingFlags.NonPublic | BindingFlags.Instance);
-                expireMethod?.Invoke(
-                    CurrentInstance.SubscriptionManager, new object[] { subscription });
+                var expireMethod = typeof(SubscriptionManager).GetMethod("SubscriptionExpired", BindingFlags.NonPublic | BindingFlags.Instance);
+                expireMethod?.Invoke(CurrentInstance.SubscriptionManager, new object[] { subscription });
             }
         }
         catch
@@ -792,8 +816,7 @@ public partial class PlcServer : StandardServer
                         InjectErrorResponseRate = Random.Shared.Next(1, 20);
                         var duration = TimeSpan.FromSeconds(Random.Shared.Next(10, 150));
                         LogInjectingRandomErrors(InjectErrorResponseRate, duration.TotalMilliseconds);
-                        _ = Task.Run(async () =>
-                        {
+                        _ = Task.Run(async () => {
                             try
                             {
                                 await Task.Delay(duration, ct).ConfigureAwait(false);
@@ -989,37 +1012,37 @@ public partial class PlcServer : StandardServer
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "!!!!! Closing all sessions and associated subscriptions. !!!!!!")]
+        Message = "!!!!! Closing all sessions and associated subscriptions !!!!!!")]
     partial void LogClosingAllSessionsAndSubscriptions();
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "!!!!! Closing all sessions. !!!!!")]
+        Message = "!!!!! Closing all sessions !!!!!")]
     partial void LogClosingAllSessions();
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "!!!!! Notifying expiration and closing all subscriptions. !!!!!")]
+        Message = "!!!!! Notifying expiration and closing all subscriptions !!!!!")]
     partial void LogNotifyingExpirationAndClosingAllSubscriptions();
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "!!!!! Closing all subscriptions. !!!!!")]
+        Message = "!!!!! Closing all subscriptions !!!!!")]
     partial void LogClosingAllSubscriptions();
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "!!!!! Closing session {Session} (delete subscriptions: {Delete}). !!!!!")]
+        Message = "!!!!! Closing session {Session} (delete subscriptions: {Delete}) !!!!!")]
     partial void LogClosingSession(NodeId session, bool delete);
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "!!!!! Injecting random errors every {Rate} responses for {Duration} ms. !!!!!")]
+        Message = "!!!!! Injecting random errors every {Rate} responses for {Duration:N0} ms !!!!!")]
     partial void LogInjectingRandomErrors(int rate, double duration);
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "!!!!! Closing subscription {Subscription} (notify: {Notify}). !!!!!")]
+        Message = "!!!!! Closing subscription {Subscription} (notify: {Notify}) !!!!!")]
     partial void LogClosingSubscription(uint subscription, bool notify);
 
     [LoggerMessage(
@@ -1031,4 +1054,9 @@ public partial class PlcServer : StandardServer
         Level = LogLevel.Information,
         Message = "Chaos mode stopped!")]
     partial void LogChaosModeStopped();
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "CreateSession attempted while server halted (client reconnect during startup/shutdown)")]
+    partial void LogCreateSessionWhileHalted();
 }

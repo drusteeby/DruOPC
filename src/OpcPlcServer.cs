@@ -203,7 +203,7 @@ public class OpcPlcServer : BackgroundService
         _logger.LogInformation("Starting server on endpoint {Endpoint} ...", plcApplicationConfiguration.ServerConfiguration.BaseAddresses[0]);
         _logger.LogInformation("Simulation settings are:");
         _logger.LogInformation("One simulation phase consists of {SimulationCycleCount} cycles", PlcSimulationInstance.SimulationCycleCount);
-        _logger.LogInformation("One cycle takes {SimulationCycleLength} ms", PlcSimulationInstance.SimulationCycleLength);
+        _logger.LogInformation("One cycle takes {SimulationCycleLength:N0} ms", PlcSimulationInstance.SimulationCycleLength);
         _logger.LogInformation("Reference test simulation: {AddReferenceTestSimulation}",
             PlcSimulationInstance.AddReferenceTestSimulation ? "Enabled" : "Disabled");
         _logger.LogInformation("Simple events: {AddSimpleEventsSimulation}",

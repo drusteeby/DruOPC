@@ -87,7 +87,7 @@ public class DipPluginNode : PluginNodeBase, IPluginNodes
 
     /// <summary>
     /// Generates a sine wave with dips at a random cycle in the phase.
-    /// Called each SimulationCycleLength msec.
+    /// Called each SimulationCycleLength ms.
     /// </summary>
     private double DipGenerator(double value)
     {

@@ -87,7 +87,7 @@ public class SpikePluginNode : PluginNodeBase, IPluginNodes
 
     /// <summary>
     /// Generates a sine wave with spikes at a random cycle in the phase.
-    /// Called each SimulationCycleLength msec.
+    /// Called each SimulationCycleLength ms.
     /// </summary>
     private double SpikeGenerator(double value)
     {
