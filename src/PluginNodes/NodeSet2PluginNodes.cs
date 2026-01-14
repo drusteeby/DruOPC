@@ -1,7 +1,9 @@
 namespace OpcPlc.PluginNodes;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Opc.Ua;
+using OpcPlc.Configuration;
 using OpcPlc.Helpers;
 using OpcPlc.PluginNodes.Models;
 using System;
@@ -12,18 +14,16 @@ using System.Linq;
 /// <summary>
 /// Nodes that are configured via *.NodeSet2.xml file(s).
 /// </summary>
-public class NodeSet2PluginNodes(TimeService timeService, ILogger logger) : PluginNodeBase(timeService, logger), IPluginNodes
+public class NodeSet2PluginNodes : PluginNodeBase, IPluginNodes
 {
-    private List<string> _nodesFileNames;
+    private readonly List<string> _nodesFileNames;
     private PlcNodeManager _plcNodeManager;
     private Stream _nodes2File;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
+    public NodeSet2PluginNodes(TimeService timeService, ILogger<NodeSet2PluginNodes> logger, IOptions<OpcPlcConfiguration> options)
+        : base(timeService, logger)
     {
-        optionSet.Add(
-            "ns2|nodeset2file=",
-            "the *.NodeSet2.xml file that contains the nodes to be created in the OPC UA address space (multiple comma separated filenames supported).",
-            (string s) => _nodesFileNames = CliHelper.ParseListOfFileNames(s, "ns2"));
+        _nodesFileNames = options.Value.NodeSet2Files;
     }
 
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)

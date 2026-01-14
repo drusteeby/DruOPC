@@ -107,10 +107,10 @@ public partial class SlowFastCommon
             NodeType.UIntArray => (new NodeId((uint)BuiltInType.UInt32), ValueRanks.OneDimension, new uint[32], null, null, null),
 
             _ => (new NodeId((uint)BuiltInType.UInt32), ValueRanks.Scalar, (uint)0, uint.Parse(stepSize),
-                minValue == null
+                string.IsNullOrEmpty(minValue)
                     ? uint.MinValue
                     : uint.Parse(minValue),
-                maxValue == null
+                string.IsNullOrEmpty(maxValue)
                     ? uint.MaxValue
                     : uint.Parse(maxValue)),
         };

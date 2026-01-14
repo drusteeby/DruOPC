@@ -1,0 +1,30 @@
+[Unit]
+Description=OPC PLC Server
+After=network.target
+
+[Service]
+Type=simple
+# Path to the published application
+WorkingDirectory=/home/pico/test/opc-plc
+ExecStart=/home/pico/test/opc-plc
+User=root
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+KillSignal=SIGINT
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=opcplc
+
+# Resource limits (optional)
+# LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

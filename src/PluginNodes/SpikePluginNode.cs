@@ -1,7 +1,9 @@
 namespace OpcPlc.PluginNodes;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Opc.Ua;
+using OpcPlc.Configuration;
 using OpcPlc.Helpers;
 using OpcPlc.PluginNodes.Models;
 using System;
@@ -10,9 +12,9 @@ using System.Collections.Generic;
 /// <summary>
 /// Node with a sine wave value with a spike anomaly.
 /// </summary>
-public class SpikePluginNode(TimeService timeService, ILogger logger) : PluginNodeBase(timeService, logger), IPluginNodes
+public class SpikePluginNode : PluginNodeBase, IPluginNodes
 {
-    private bool _isEnabled = true;
+    private readonly bool _isEnabled;
     private PlcNodeManager _plcNodeManager;
     private SimulatedVariableNode<double> _node;
     private readonly Random _random = new();
@@ -20,12 +22,10 @@ public class SpikePluginNode(TimeService timeService, ILogger logger) : PluginNo
     private int _spikeAnomalyCycle;
     private const double SimulationMaxAmplitude = 100.0;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
+    public SpikePluginNode(TimeService timeService, ILogger<SpikePluginNode> logger, IOptions<OpcPlcConfiguration> options)
+        : base(timeService, logger)
     {
-        optionSet.Add(
-            "ns|nospikes",
-            $"do not generate spike data.\nDefault: {!_isEnabled}",
-            (string s) => _isEnabled = s == null);
+        _isEnabled = !options.Value.DataGeneration.NoSpikes;
     }
 
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)

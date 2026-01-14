@@ -1,7 +1,9 @@
 namespace OpcPlc.PluginNodes;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Opc.Ua;
+using OpcPlc.Configuration;
 using OpcPlc.Helpers;
 using OpcPlc.PluginNodes.Models;
 using System.Collections.Generic;
@@ -13,11 +15,13 @@ using System.Text;
 /// The first byte cycles from 0 to 255 in a configurable rate in ms.
 /// The values are deterministic but scrambled to ensure that they are not efficiently compressed.
 /// </summary>
-public class VeryFastByteStringPluginNodes(TimeService timeService, ILogger logger) : PluginNodeBase(timeService, logger), IPluginNodes
+public class VeryFastByteStringPluginNodes : PluginNodeBase, IPluginNodes
 {
-    private uint NodeCount { get; set; } = 1;
-    private uint NodeSize { get; set; } = 1024; // Bytes.
-    private uint NodeRate { get; set; } = 1000; // ms.
+    private readonly VeryFastByteStringNodesConfiguration _config;
+
+    private uint NodeCount => _config.NodeCount;
+    private uint NodeSize => _config.NodeSize;
+    private uint NodeRate => _config.NodeRate;
 
     private readonly DeterministicGuid _deterministicGuid = new();
     private PlcNodeManager _plcNodeManager;
@@ -25,22 +29,10 @@ public class VeryFastByteStringPluginNodes(TimeService timeService, ILogger logg
     private byte[] _byteString;
     private ITimer _nodeGenerator;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
+    public VeryFastByteStringPluginNodes(TimeService timeService, ILogger<VeryFastByteStringPluginNodes> logger, IOptions<OpcPlcConfiguration> options)
+        : base(timeService, logger)
     {
-        optionSet.Add(
-            "vfbs|veryfastbsnodes=",
-            $"number of very fast ByteString nodes.\nDefault: {NodeCount}",
-            (uint i) => NodeCount = i);
-
-        optionSet.Add(
-            "vfbss|veryfastbssize=",
-            $"size in bytes to change very fast ByteString nodes (min. 1).\nDefault: {NodeSize}",
-            (uint i) => NodeSize = i);
-
-        optionSet.Add(
-            "vfbsr|veryfastbsrate=",
-            $"rate in ms to change very fast ByteString nodes.\nDefault: {NodeRate}",
-            (uint i) => NodeRate = i);
+        _config = options.Value.VeryFastByteStringNodes;
     }
 
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)
@@ -148,3 +140,4 @@ public class VeryFastByteStringPluginNodes(TimeService timeService, ILogger logg
         return sb.ToString()[..maxLength];
     }
 }
+

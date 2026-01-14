@@ -1,0 +1,20 @@
+[
+  {
+    "EndpointUrl": "opc.tcp://localhost:50000",
+    "UseSecurity": false,
+    "OpcNodes": [
+      { "Id": "nsu=http://microsoft.com/Opc/OpcPlc/;s=SlowUInt1", "OpcPublishingInterval": 10000, "OpcSamplingInterval": 0 },
+      { "Id": "nsu=http://microsoft.com/Opc/OpcPlc/;s=FastUInt1", "OpcPublishingInterval": 1000, "OpcSamplingInterval": 0 },
+      { "Id": "nsu=http://microsoft.com/Opc/OpcPlc/;s=FastUInt1Bad", "OpcPublishingInterval": 1000, "OpcSamplingInterval": 0 },
+      { "Id": "nsu=http://microsoft.com/Opc/OpcPlc/;s=StepUp", "OpcPublishingInterval": 1000 },
+      { "Id": "nsu=http://microsoft.com/Opc/OpcPlc/;s=AlternatingBoolean", "OpcPublishingInterval": 1000 },
+      { "Id": "nsu=http://microsoft.com/Opc/OpcPlc/;s=RandomSignedInt32", "OpcPublishingInterval": 1000 },
+      { "Id": "nsu=http://microsoft.com/Opc/OpcPlc/;s=RandomUnsignedInt32", "OpcPublishingInterval": 1000 },
+      { "Id": "nsu=http://microsoft.com/Opc/OpcPlc/;s=SpikeData" },
+      { "Id": "nsu=http://microsoft.com/Opc/OpcPlc/;s=DipData" },
+      { "Id": "nsu=http://microsoft.com/Opc/OpcPlc/;s=PositiveTrendData" },
+      { "Id": "nsu=http://microsoft.com/Opc/OpcPlc/;s=NegativeTrendData" },
+      { "Id": "nsu=http://microsoft.com/Opc/OpcPlc/;b=YWJj" }
+    ]
+  }
+]

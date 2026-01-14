@@ -30,6 +30,27 @@ public partial class PlcNodeManager : CustomNodeManager2
     public PlcSimulation PlcSimulationInstance { get; }
 
     /// <summary>
+    /// Gets or registers a namespace index for the given namespace URI.
+    /// </summary>
+    public ushort GetNamespaceIndex(string namespaceUri)
+    {
+        if (string.IsNullOrEmpty(namespaceUri))
+        {
+            return NamespaceIndexes[(int)NamespaceType.OpcPlcApplications];
+        }
+
+        // Check if namespace is already registered
+        int index = SystemContext.NamespaceUris.GetIndex(namespaceUri);
+        if (index >= 0)
+        {
+            return (ushort)index;
+        }
+
+        // Register new namespace
+        return SystemContext.NamespaceUris.GetIndexOrAppend(namespaceUri);
+    }
+
+    /// <summary>
     /// Creates the NodeId for the specified node.
     /// </summary>
     public override NodeId New(ISystemContext context, NodeState node)
@@ -150,6 +171,66 @@ public partial class PlcNodeManager : CustomNodeManager2
     }
 
     /// <summary>
+    /// Creates a new variable with custom namespace index.
+    /// </summary>
+    public BaseDataVariableState CreateBaseVariableWithNamespace(NodeState parent, dynamic path, string name, NodeId dataType, int valueRank, byte accessLevel, string description, ushort namespaceIndex, object defaultValue = null)
+    {
+        var baseDataVariableState = new BaseDataVariableState(parent) {
+            SymbolicName = name,
+            ReferenceTypeId = ReferenceTypes.Organizes,
+            TypeDefinitionId = VariableTypeIds.BaseDataVariableType,
+        };
+
+        if (path is uint or long)
+        {
+            baseDataVariableState.NodeId = new NodeId((uint)path, namespaceIndex);
+            baseDataVariableState.BrowseName = new QualifiedName(((uint)path).ToString(), namespaceIndex);
+        }
+        else if (path is string)
+        {
+            baseDataVariableState.NodeId = new NodeId(path, namespaceIndex);
+            baseDataVariableState.BrowseName = new QualifiedName(path, namespaceIndex);
+        }
+        else if (path is Guid)
+        {
+            baseDataVariableState.NodeId = new NodeId((Guid)path, namespaceIndex);
+            baseDataVariableState.BrowseName = new QualifiedName(name, namespaceIndex);
+        }
+        else
+        {
+            LogNodeIdType(path.GetType().ToString());
+            baseDataVariableState.NodeId = new NodeId(path, namespaceIndex);
+            baseDataVariableState.BrowseName = new QualifiedName(name, namespaceIndex);
+        }
+
+        baseDataVariableState.DisplayName = new LocalizedText("en", name);
+        baseDataVariableState.WriteMask = AttributeWriteMask.DisplayName | AttributeWriteMask.Description;
+        baseDataVariableState.UserWriteMask = AttributeWriteMask.DisplayName | AttributeWriteMask.Description;
+        baseDataVariableState.DataType = dataType;
+        baseDataVariableState.ValueRank = valueRank;
+        baseDataVariableState.AccessLevel = accessLevel;
+        baseDataVariableState.UserAccessLevel = accessLevel;
+        baseDataVariableState.Historizing = false;
+        baseDataVariableState.Value = defaultValue ?? TypeInfo.GetDefaultValue(dataType, valueRank, Server.TypeTree);
+        baseDataVariableState.StatusCode = StatusCodes.Good;
+        baseDataVariableState.Timestamp = _timeService.UtcNow();
+        baseDataVariableState.Description = new LocalizedText(description);
+
+        if (valueRank == ValueRanks.OneDimension)
+        {
+            baseDataVariableState.ArrayDimensions = new ReadOnlyList<uint>(new List<uint> { 0 });
+        }
+        else if (valueRank == ValueRanks.TwoDimensions)
+        {
+            baseDataVariableState.ArrayDimensions = new ReadOnlyList<uint>(new List<uint> { 0, 0 });
+        }
+
+        parent?.AddChild(baseDataVariableState);
+
+        return baseDataVariableState;
+    }
+
+    /// <summary>
     /// Creates a new method.
     /// </summary>
     public MethodState CreateMethod(NodeState parent, string path, string name, string description, NamespaceType namespaceType)
@@ -211,7 +292,17 @@ public partial class PlcNodeManager : CustomNodeManager2
         baseDataVariableState.AccessLevel = accessLevel;
         baseDataVariableState.UserAccessLevel = accessLevel;
         baseDataVariableState.Historizing = false;
-        baseDataVariableState.Value = defaultValue ?? TypeInfo.GetDefaultValue(dataType, valueRank, Server.TypeTree);
+        
+        // Fix for string values: explicitly handle empty string and ensure scalar value rank
+        if (defaultValue is string || (defaultValue is null && dataType == DataTypeIds.String && valueRank == ValueRanks.Scalar))
+        {
+            baseDataVariableState.Value = defaultValue ?? string.Empty;
+        }
+        else
+        {
+            baseDataVariableState.Value = defaultValue ?? TypeInfo.GetDefaultValue(dataType, valueRank, Server.TypeTree);
+        }
+        
         baseDataVariableState.StatusCode = StatusCodes.Good;
         baseDataVariableState.Timestamp = _timeService.UtcNow();
         baseDataVariableState.Description = new LocalizedText(description);

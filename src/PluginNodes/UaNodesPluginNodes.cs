@@ -1,7 +1,9 @@
 namespace OpcPlc.PluginNodes;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Opc.Ua;
+using OpcPlc.Configuration;
 using OpcPlc.Helpers;
 using OpcPlc.PluginNodes.Models;
 using System;
@@ -14,19 +16,16 @@ using System.Linq;
 /// To produce a binary *.PredefinedNodes.uanodes file from an XML NodeSet file, run the following command:
 /// ModelCompiler.cmd <XML_NodeSet_FileName_Without_Extension>
 /// </summary>
-public class UaNodesPluginNodes(TimeService timeService, ILogger logger) : PluginNodeBase(timeService, logger), IPluginNodes
+public class UaNodesPluginNodes : PluginNodeBase, IPluginNodes
 {
-
-    private List<string> _nodesFileNames;
+    private readonly List<string> _nodesFileNames;
     private PlcNodeManager _plcNodeManager;
     private Stream _uanodesFile;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
+    public UaNodesPluginNodes(TimeService timeService, ILogger<UaNodesPluginNodes> logger, IOptions<OpcPlcConfiguration> options)
+        : base(timeService, logger)
     {
-        optionSet.Add(
-            "unf|uanodesfile=",
-            "the binary *.PredefinedNodes.uanodes file that contains the nodes to be created in the OPC UA address space (multiple comma separated filenames supported), use ModelCompiler.cmd <ModelDesign> to compile.",
-            (string s) => _nodesFileNames = CliHelper.ParseListOfFileNames(s, "unf"));
+        _nodesFileNames = options.Value.UaNodesFiles;
     }
 
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)

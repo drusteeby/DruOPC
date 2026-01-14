@@ -1,7 +1,9 @@
 namespace OpcPlc.PluginNodes;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Opc.Ua;
+using OpcPlc.Configuration;
 using OpcPlc.Helpers;
 using OpcPlc.PluginNodes.Models;
 using System;
@@ -10,9 +12,9 @@ using System.Collections.Generic;
 /// <summary>
 /// Node with a sine wave value with a dip anomaly.
 /// </summary>
-public class DipPluginNode(TimeService timeService, ILogger logger) : PluginNodeBase(timeService, logger), IPluginNodes
+public class DipPluginNode : PluginNodeBase, IPluginNodes
 {
-    private bool _isEnabled = true;
+    private readonly bool _isEnabled;
     private PlcNodeManager _plcNodeManager;
     private SimulatedVariableNode<double> _node;
     private readonly Random _random = new Random();
@@ -20,12 +22,10 @@ public class DipPluginNode(TimeService timeService, ILogger logger) : PluginNode
     private int _dipAnomalyCycle;
     private const double SimulationMaxAmplitude = 100.0;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
+    public DipPluginNode(TimeService timeService, ILogger<DipPluginNode> logger, IOptions<OpcPlcConfiguration> options)
+        : base(timeService, logger)
     {
-        optionSet.Add(
-            "nd|nodips",
-            $"do not generate dip data.\nDefault: {!_isEnabled}",
-            (string s) => _isEnabled = s == null);
+        _isEnabled = !options.Value.DataGeneration.NoDips;
     }
 
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)
