@@ -79,58 +79,96 @@ public class UserDefinedPluginNodes : PluginNodeBase, IPluginNodes
             name: cfgFolder.Folder,
             NamespaceType.OpcPlcApplications);
 
-        foreach (var node in cfgFolder.NodeList)
+        // Check if NodeList is not null before iterating
+        if (cfgFolder.NodeList != null)
         {
-            bool isDecimal = node.NodeId is long;
-            bool isString = node.NodeId is string;
-
-            if (!isDecimal && !isString)
+            foreach (var node in cfgFolder.NodeList)
             {
-                _logger.LogError($"The type of the node configuration for node with name {node.Name} ({node.NodeId.GetType()}) is not supported. Only decimal, string, and GUID are supported. Defaulting to string.");
-                node.NodeId = node.NodeId.ToString();
+                bool isDecimal = node.NodeId is long;
+                bool isString = node.NodeId is string;
+
+                if (!isDecimal && !isString)
+                {
+                    _logger.LogError($"The type of the node configuration for node with name {node.Name} ({node.NodeId.GetType()}) is not supported. Only decimal, string, and GUID are supported. Defaulting to string.");
+                    node.NodeId = node.NodeId.ToString();
+                }
+
+                bool isGuid = false;
+                if (Guid.TryParse(node.NodeId.ToString(), out Guid guidNodeId))
+                {
+                    isGuid = true;
+                    node.NodeId = guidNodeId;
+                }
+
+                string typedNodeId = isDecimal
+                    ? $"i={node.NodeId.ToString()}"
+                    : isGuid
+                        ? $"g={node.NodeId.ToString()}"
+                        : $"s={node.NodeId.ToString()}";
+
+                if (node.ValueRank == 1 && node.Value is JArray jArrayValue)
+                {
+                    node.Value = UpdateArrayValue(node, jArrayValue);
+                }
+
+                if (string.IsNullOrEmpty(node.Name))
+                {
+                    node.Name = typedNodeId;
+                }
+
+                if (string.IsNullOrEmpty(node.Description))
+                {
+                    node.Description = node.Name;
+                }
+
+                // Determine the namespace index to use
+                ushort namespaceIndex;
+                if (node.NamespaceIndex.HasValue)
+                {
+                    // Use explicit namespace index
+                    namespaceIndex = node.NamespaceIndex.Value;
+                    _logger.LogDebug("Using explicit namespace index {NamespaceIndex} for node {NodeId}",
+                        namespaceIndex, typedNodeId);
+                }
+                else if (!string.IsNullOrEmpty(node.Namespace))
+                {
+                    // Register or get namespace URI
+                    namespaceIndex = _plcNodeManager.GetNamespaceIndex(node.Namespace);
+                    _logger.LogDebug("Using namespace URI '{Namespace}' (index: {NamespaceIndex}) for node {NodeId}",
+                        node.Namespace, namespaceIndex, typedNodeId);
+                }
+                else
+                {
+                    // Use default namespace
+                    namespaceIndex = _plcNodeManager.NamespaceIndexes[(int)NamespaceType.OpcPlcApplications];
+                    _logger.LogDebug("Using default namespace index {NamespaceIndex} for node {NodeId}",
+                        namespaceIndex, typedNodeId);
+                }
+
+                _logger.LogDebug("Create node with Id {TypedNodeId}, BrowseName {Name} and type {Type} in namespace with index {NamespaceIndex}",
+                    typedNodeId,
+                    node.Name,
+                    (string)node.NodeId.GetType().Name,
+                    namespaceIndex);
+
+                CreateBaseVariable(userNodesFolder, node, namespaceIndex);
+
+                NodeId nodeId;
+                if (isDecimal)
+                {
+                    nodeId = new NodeId((uint)node.NodeId, namespaceIndex);
+                }
+                else if (isGuid)
+                {
+                    nodeId = new NodeId((Guid)node.NodeId, namespaceIndex);
+                }
+                else
+                {
+                    nodeId = new NodeId((string)node.NodeId, namespaceIndex);
+                }
+
+                yield return PluginNodesHelper.GetNodeWithIntervals(nodeId, _plcNodeManager);
             }
-
-            bool isGuid = false;
-            if (Guid.TryParse(node.NodeId.ToString(), out Guid guidNodeId))
-            {
-                isGuid = true;
-                node.NodeId = guidNodeId;
-            }
-
-            string typedNodeId = isDecimal
-                ? $"i={node.NodeId.ToString()}"
-                : isGuid
-                    ? $"g={node.NodeId.ToString()}"
-                    : $"s={node.NodeId.ToString()}";
-
-            if (node.ValueRank == 1 && node.Value is JArray jArrayValue)
-            {
-                node.Value = UpdateArrayValue(node, jArrayValue);
-            }
-
-            if (string.IsNullOrEmpty(node.Name))
-            {
-                node.Name = typedNodeId;
-            }
-
-            if (string.IsNullOrEmpty(node.Description))
-            {
-                node.Description = node.Name;
-            }
-
-            _logger.LogDebug("Create node with Id {TypedNodeId}, BrowseName {Name} and type {Type} in namespace with index {NamespaceIndex}",
-                typedNodeId,
-                node.Name,
-                (string)node.NodeId.GetType().Name,
-                _plcNodeManager.NamespaceIndexes[(int)NamespaceType.OpcPlcApplications]);
-
-            CreateBaseVariable(userNodesFolder, node);
-
-            var nodeId = isString
-                ? new NodeId(node.NodeId, _plcNodeManager.NamespaceIndexes[(int)NamespaceType.OpcPlcApplications])
-                : (NodeId)node.NodeId;
-
-            yield return PluginNodesHelper.GetNodeWithIntervals(nodeId, _plcNodeManager);
         }
 
         foreach (var childNode in AddFolders(userNodesFolder, cfgFolder))
@@ -156,9 +194,9 @@ public class UserDefinedPluginNodes : PluginNodeBase, IPluginNodes
     }
 
     /// <summary>
-    /// Creates a new variable.
+    /// Creates a new variable with custom namespace support.
     /// </summary>
-    public void CreateBaseVariable(NodeState parent, ConfigNode node)
+    public void CreateBaseVariable(NodeState parent, ConfigNode node, ushort namespaceIndex)
     {
         if (!Enum.TryParse(node.DataType, out BuiltInType nodeDataType))
         {
@@ -179,7 +217,16 @@ public class UserDefinedPluginNodes : PluginNodeBase, IPluginNodes
             accessLevel = AccessLevels.CurrentReadOrWrite;
         }
 
-        _plcNodeManager.CreateBaseVariable(parent, node.NodeId, node.Name, new NodeId((uint)nodeDataType), node.ValueRank, accessLevel, node.Description, NamespaceType.OpcPlcApplications, node?.Value);
+        _plcNodeManager.CreateBaseVariableWithNamespace(
+            parent, 
+            node.NodeId, 
+            node.Name, 
+            new NodeId((uint)nodeDataType), 
+            node.ValueRank, 
+            accessLevel, 
+            node.Description, 
+            namespaceIndex, 
+            node?.Value);
     }
 
     private static object UpdateArrayValue(ConfigNode node, JArray jArrayValue)

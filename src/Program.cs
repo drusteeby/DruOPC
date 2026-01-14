@@ -59,10 +59,22 @@ public static class Program
         builder.Services.AddSingleton(args);
         builder.Services.AddTransient<TimeService>();
         builder.Services.AddHostedService<OpcPlcServer>();
+        builder.Services.AddHostedService<OpcTagWriterService>(); // Register the OPC Tag Writer Service
         builder.Services.AddSingleton<ILogger>(container => container.GetService<ILogger<object>>());
         builder.Services.AddSingleton<IpAddressProvider>();
         builder.Services.AddSingleton<PlcSimulation>();
-        builder.Services.AddSingleton<PlcServer>();
+        
+        // Register a factory to get PlcServer from OpcPlcServer
+        builder.Services.AddSingleton<Func<PlcServer>>(sp =>
+        {
+            return () =>
+            {
+                var opcPlcServer = sp.GetServices<IHostedService>()
+                    .OfType<OpcPlcServer>()
+                    .FirstOrDefault();
+                return opcPlcServer?.PlcServer;
+            };
+        });
 
         // Register plugin nodes as services
         builder.Services.Scan(scan => scan

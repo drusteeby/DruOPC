@@ -41,4 +41,17 @@ public class ConfigNode
     public string Description { get; set; }
 
     public object Value { get; set; }
+
+    /// <summary>
+    /// Optional: Custom namespace URI for the node.
+    /// If not specified, defaults to OpcPlcApplications namespace.
+    /// </summary>
+    public string Namespace { get; set; }
+
+    /// <summary>
+    /// Optional: Custom namespace index for the node.
+    /// Takes precedence over Namespace if both are specified.
+    /// If not specified, defaults to OpcPlcApplications namespace.
+    /// </summary>
+    public ushort? NamespaceIndex { get; set; }
 }
