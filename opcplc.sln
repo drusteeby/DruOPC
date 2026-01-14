@@ -40,15 +40,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "templates", "templates", "{
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "opc-plc-tests", "tests\opc-plc-tests.csproj", "{978DA9FC-4211-46CE-8548-D16E3DC3550F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModbusSocketTrayTester", "ModbusSocketTrayTester\ModbusSocketTrayTester.csproj", "{FC744F87-225B-42BA-9BF2-3A3032EF96FF}"
-	ProjectSection(ProjectDependencies) = postProject
-		{E8370000-39D6-A967-E843-3576D834F82E} = {E8370000-39D6-A967-E843-3576D834F82E}
-	EndProjectSection
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FluentModbus", "..\FluentModbus\src\FluentModbus\FluentModbus.csproj", "{E8370000-39D6-A967-E843-3576D834F82E}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OP-Decoder", "OP-Decoder\OP-Decoder.csproj", "{4CDA6724-863F-4445-9D38-7F62F1848960}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -63,18 +54,6 @@ Global
 		{978DA9FC-4211-46CE-8548-D16E3DC3550F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{978DA9FC-4211-46CE-8548-D16E3DC3550F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{978DA9FC-4211-46CE-8548-D16E3DC3550F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{FC744F87-225B-42BA-9BF2-3A3032EF96FF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{FC744F87-225B-42BA-9BF2-3A3032EF96FF}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{FC744F87-225B-42BA-9BF2-3A3032EF96FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{FC744F87-225B-42BA-9BF2-3A3032EF96FF}.Release|Any CPU.Build.0 = Release|Any CPU
-		{E8370000-39D6-A967-E843-3576D834F82E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{E8370000-39D6-A967-E843-3576D834F82E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{E8370000-39D6-A967-E843-3576D834F82E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{E8370000-39D6-A967-E843-3576D834F82E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4CDA6724-863F-4445-9D38-7F62F1848960}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4CDA6724-863F-4445-9D38-7F62F1848960}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4CDA6724-863F-4445-9D38-7F62F1848960}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4CDA6724-863F-4445-9D38-7F62F1848960}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
