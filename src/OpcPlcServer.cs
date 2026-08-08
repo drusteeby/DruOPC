@@ -100,15 +100,14 @@ public class OpcPlcServer : BackgroundService
         _logger.LogInformation("Log file: {LogFileName}", Path.GetFullPath(_config.LogFileName));
         _logger.LogInformation("Log level: {LogLevel}", _config.LogLevelCli);
 
-        // Show OPC PLC version.
-        var fileVersion = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
+        // Show version info.
         _logger.LogInformation("{ProgramName} v{Version} from {Date} starting up ...",
             _config.ProgramName,
-            $"{fileVersion.ProductMajorPart}.{fileVersion.ProductMinorPart}.{fileVersion.ProductBuildPart}",
-            File.GetLastWriteTimeUtc(Assembly.GetExecutingAssembly().Location));
+            $"{VersionInfo.FileVersion.Major}.{VersionInfo.FileVersion.Minor}.{VersionInfo.FileVersion.Build}",
+            VersionInfo.BuildTimestampUtc);
         _logger.LogDebug("{ProgramName} informational version: v{Version}",
             _config.ProgramName,
-            (Attribute.GetCustomAttribute(Assembly.GetEntryAssembly(), typeof(AssemblyInformationalVersionAttribute)) as AssemblyInformationalVersionAttribute)?.InformationalVersion);
+            VersionInfo.InformationalVersion);
 
         // Show OPC UA SDK version.
         _logger.LogInformation(

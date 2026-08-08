@@ -1,0 +1,32 @@
+name: PR
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Nerdbank.GitVersioning needs full history to compute the version.
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build druopc.slnx -c Release
+
+      - name: Test
+        # The suite starts real OPC UA servers on ephemeral ports and
+        # exercises them with a real client (incl. alarm acknowledge).
+        run: dotnet test tests -c Release --no-build --logger "console;verbosity=minimal"

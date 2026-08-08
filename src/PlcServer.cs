@@ -510,19 +510,18 @@ public partial class PlcServer : StandardServer
     /// </remarks>
     protected override ServerProperties LoadServerProperties()
     {
-        var fileVersion = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
-
-        string opcPlcBuildNumber = fileVersion.ProductVersion[(fileVersion.ProductVersion.IndexOf('+') + 1)..];
+        string informationalVersion = VersionInfo.InformationalVersion;
+        string opcPlcBuildNumber = informationalVersion[(informationalVersion.IndexOf('+') + 1)..];
         string opcUaSdkVersion = Utils.GetAssemblySoftwareVersion();
         string opcUaSdkBuildNumber = opcUaSdkVersion[(opcUaSdkVersion.IndexOf('+') + 1)..];
 
         var properties = new ServerProperties {
-            ManufacturerName = "Microsoft",
-            ProductName = "IoT Edge OPC UA PLC",
-            ProductUri = "https://github.com/Azure-Samples/iot-edge-opc-plc",
-            SoftwareVersion = $"{fileVersion.ProductMajorPart}.{fileVersion.ProductMinorPart}.{fileVersion.ProductBuildPart} (OPC UA SDK {Utils.GetAssemblyBuildNumber()})",
+            ManufacturerName = "DruOPC project",
+            ProductName = "DruOPC Simulator",
+            ProductUri = "https://github.com/drusteeby/DruOPC",
+            SoftwareVersion = $"{VersionInfo.FileVersion.Major}.{VersionInfo.FileVersion.Minor}.{VersionInfo.FileVersion.Build} (OPC UA SDK {Utils.GetAssemblyBuildNumber()})",
             BuildNumber = $"{opcPlcBuildNumber} (OPC UA SDK {opcUaSdkBuildNumber} from {Utils.GetAssemblyTimestamp():yyyy-MM-ddTHH:mm:ssZ})",
-            BuildDate = File.GetLastWriteTimeUtc(Assembly.GetExecutingAssembly().Location),
+            BuildDate = VersionInfo.BuildTimestampUtc,
         };
 
         return properties;

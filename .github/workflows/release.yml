@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: |
+          dotnet build druopc.slnx -c Release
+          dotnet test tests -c Release --no-build --logger "console;verbosity=minimal"
+
+      - name: Publish binaries
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME}"
+          mkdir -p dist
+
+          for RID in linux-x64 win-x64 osx-arm64; do
+            for APP in simulator browser; do
+              if [ "$APP" = "simulator" ]; then PROJECT=src; else PROJECT=browser; fi
+
+              OUT="publish/druopc-$APP-$VERSION-$RID"
+              dotnet publish "$PROJECT" -c Release -r "$RID" --self-contained \
+                -p:PublishSingleFile=true -p:GeneratePackageOnBuild=false -o "$OUT"
+
+              if [ "$RID" = "win-x64" ]; then
+                (cd "$OUT" && zip -qr "../../dist/druopc-$APP-$VERSION-$RID.zip" .)
+              else
+                tar -czf "dist/druopc-$APP-$VERSION-$RID.tar.gz" -C "$OUT" .
+              fi
+            done
+          done
+
+          ls -lh dist/
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
