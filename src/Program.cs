@@ -66,7 +66,15 @@ public static class Program
     /// </summary>
     public static IServiceCollection AddOpcPlcServices(this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<OpcPlcConfiguration>(configuration.GetSection(OpcPlcConfiguration.SectionName));
+        services.AddOptions<OpcPlcConfiguration>()
+            .Bind(configuration.GetSection(OpcPlcConfiguration.SectionName))
+            .Validate(c => c.FastNodes.NodeRate > 0, "FastNodes:NodeRate must be a positive number of seconds")
+            .Validate(c => c.SlowNodes.NodeRate > 0, "SlowNodes:NodeRate must be a positive number of seconds")
+            .Validate(c => c.VeryFastByteStringNodes.NodeRate > 0, "VeryFastByteStringNodes:NodeRate must be a positive number of ms")
+            .Validate(c => c.Simulation.SimulationCycleLength > 0, "Simulation:SimulationCycleLength must be a positive number of ms")
+            .Validate(c => c.Simulation.EventInstanceRate > 0, "Simulation:EventInstanceRate must be a positive number of ms")
+            .Validate(c => c.TagWriter.StepDelayMs > 0 && c.TagWriter.WriteIntervalMs > 0, "TagWriter delays must be positive")
+            .ValidateOnStart();
 
         services.AddControllers();
 
@@ -112,10 +120,9 @@ public static class Program
                 .GetSection(OpcPlcConfiguration.SectionName)
                 .Get<OpcPlcConfiguration>() ?? new OpcPlcConfiguration();
 
-            if (config.ShowPublisherConfigJsonIp || config.ShowPublisherConfigJsonPh)
-            {
-                serverOptions.ListenAnyIP((int)config.WebServerPort);
-            }
+            // Always bind the configured web server port so the pn.json
+            // endpoint is served where the logs say it is.
+            serverOptions.ListenAnyIP((int)config.WebServerPort);
         });
     }
 }

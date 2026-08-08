@@ -18,11 +18,14 @@ public sealed class UaEventLog : IAsyncDisposable
 
     private Subscription? _subscription;
     private MonitoredItem? _monitoredItem;
+    private volatile UaEventRow[] _eventsSnapshot = [];
 
     public UaEventLog(UaConnection connection, ILogger<UaEventLog> logger)
     {
         _connection = connection;
         _logger = logger;
+
+        _connection.SessionReplaced += OnSessionReplaced;
     }
 
     public bool IsActive => _monitoredItem is not null;
@@ -31,8 +34,8 @@ public sealed class UaEventLog : IAsyncDisposable
 
     public string NotifierName { get; private set; } = "";
 
-    /// <summary>Newest events first (snapshot; do not mutate).</summary>
-    public IReadOnlyCollection<UaEventRow> Events => _events;
+    /// <summary>Thread-safe snapshot of the received events, newest first.</summary>
+    public IReadOnlyList<UaEventRow> Events => _eventsSnapshot;
 
     /// <summary>Raised when events arrive. May fire on a background thread.</summary>
     public event Action? Changed;
@@ -115,9 +118,22 @@ public sealed class UaEventLog : IAsyncDisposable
         lock (_events)
         {
             _events.Clear();
+            _eventsSnapshot = [];
         }
 
         Changed?.Invoke();
+    }
+
+    private void OnSessionReplaced(Opc.Ua.Client.Session newSession)
+    {
+        // The SDK cloned our subscription onto the recreated session; re-bind.
+        var clone = newSession.Subscriptions.FirstOrDefault(s => s.DisplayName == "UaScope events");
+        if (clone is not null)
+        {
+            _subscription = clone;
+            _monitoredItem = clone.MonitoredItems.FirstOrDefault();
+            _logger.LogInformation("Event subscription re-bound to recreated session");
+        }
     }
 
     private async Task StopCoreAsync()
@@ -191,8 +207,7 @@ public sealed class UaEventLog : IAsyncDisposable
             GetField(BrowseNames.Severity),
             GetField(BrowseNames.SourceName),
             eventTypeText,
-            GetField(BrowseNames.Message),
-            GetField(BrowseNames.ConditionName));
+            GetField(BrowseNames.Message));
 
         lock (_events)
         {
@@ -201,6 +216,8 @@ public sealed class UaEventLog : IAsyncDisposable
             {
                 _events.RemoveLast();
             }
+
+            _eventsSnapshot = _events.ToArray();
         }
 
         Changed?.Invoke();
@@ -208,6 +225,8 @@ public sealed class UaEventLog : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _connection.SessionReplaced -= OnSessionReplaced;
+
         try
         {
             await StopAsync().ConfigureAwait(false);

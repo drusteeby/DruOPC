@@ -275,6 +275,75 @@ ul.tree-children { padding-left: 16px; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* search results */
+.search-results {
+    border-bottom: 1px solid var(--border);
+    max-height: 40%;
+    overflow: auto;
+    flex-shrink: 0;
+    background: #171b22;
+}
+
+.search-results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 10px;
+    color: var(--text-dim);
+    font-size: 12px;
+    position: sticky;
+    top: 0;
+    background: #171b22;
+}
+
+.search-result {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.search-result:hover { background: var(--bg-hover); }
+.search-result-name { overflow: hidden; text-overflow: ellipsis; }
+.search-result .mono { font-size: 11px; margin-left: auto; }
+
+/* ── Selected node bar ─────────────────────────────────────────── */
+
+.node-bar {
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px;
+    flex-shrink: 0;
+}
+
+.node-bar-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.node-bar-name { font-weight: 600; font-size: 14px; }
+.node-bar-actions { margin-left: auto; display: flex; gap: 4px; }
+.node-bar-id { color: var(--text-dim); font-size: 11.5px; margin-top: 2px; word-break: break-all; }
+
+.breadcrumb {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-dim);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.crumb { color: var(--accent); cursor: pointer; }
+.crumb:hover { text-decoration: underline; }
+.crumb-sep { margin: 0 4px; opacity: 0.5; }
+
+.hint-inline { color: var(--text-dim); font-size: 12.5px; }
+
 /* ── Data grids ────────────────────────────────────────────────── */
 
 table.grid {
@@ -320,7 +389,12 @@ table.grid tr.bad td { color: var(--bad); }
 .status-bad { color: var(--bad); }
 
 /* watch list */
-.watch-grid .value-cell { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.watch-grid .value-cell { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.node-id-small { font-size: 10.5px; }
+
+.spark-cell { width: 100px; }
+.sparkline { width: 96px; height: 22px; display: block; }
+.sparkline polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .watch-grid .flash { animation: flash 0.7s ease-out; }
 .row-actions { white-space: nowrap; text-align: right; }
 .write-input { width: 130px; font-family: var(--mono); font-size: 12px; padding: 1px 6px; }

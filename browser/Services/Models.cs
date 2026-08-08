@@ -65,8 +65,6 @@ public sealed record UaEndpointInfo(
 /// </summary>
 public sealed class UaWatchItem
 {
-    public required uint ClientHandle { get; init; }
-
     public required NodeId NodeId { get; init; }
 
     public required string DisplayName { get; init; }
@@ -94,6 +92,50 @@ public sealed class UaWatchItem
     public DateTime LastUpdateUtc { get; set; }
 
     public long UpdateCount { get; set; }
+
+    /// <summary>
+    /// Rolling window of recent numeric values for the sparkline
+    /// (null for non-numeric values). Guarded by its own lock.
+    /// </summary>
+    public Queue<double> History { get; } = new();
+
+    public const int MaxHistory = 60;
+
+    /// <summary>
+    /// Take a thread-safe snapshot of the numeric history.
+    /// </summary>
+    public double[] HistorySnapshot()
+    {
+        lock (History)
+        {
+            return History.ToArray();
+        }
+    }
+
+    public void PushHistory(object? value)
+    {
+        double? numeric = value switch
+        {
+            sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal
+                => Convert.ToDouble(value),
+            bool b => b ? 1 : 0,
+            _ => null,
+        };
+
+        if (numeric is null || double.IsNaN(numeric.Value) || double.IsInfinity(numeric.Value))
+        {
+            return;
+        }
+
+        lock (History)
+        {
+            History.Enqueue(numeric.Value);
+            while (History.Count > MaxHistory)
+            {
+                History.Dequeue();
+            }
+        }
+    }
 }
 
 /// <summary>
@@ -105,8 +147,7 @@ public sealed record UaEventRow(
     string Severity,
     string SourceName,
     string EventType,
-    string Message,
-    string ConditionExtra);
+    string Message);
 
 /// <summary>
 /// Information about the current session for the session panel.

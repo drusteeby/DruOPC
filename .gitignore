@@ -39,3 +39,4 @@
 CodeCoverage
 coverage.cobertura.xml
 /src/publish
+pn.json

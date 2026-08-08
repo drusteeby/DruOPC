@@ -28,16 +28,28 @@ internal class MetricsTests : SimulatorTestsBase
             }
         };
 
+        // Use the indexer: instruments report repeatedly (also from server internals),
+        // and Dictionary.Add would throw on the second measurement.
         _meterListener.SetMeasurementEventCallback(
-            (Instrument instrument, long measurement, ReadOnlySpan<KeyValuePair<string, object?>> tags, object? state) => _metrics.Add(instrument.Name, measurement));
+            (Instrument instrument, long measurement, ReadOnlySpan<KeyValuePair<string, object?>> tags, object? state) => _metrics[instrument.Name] = measurement);
 
         _meterListener.SetMeasurementEventCallback(
-            (Instrument instrument, double measurement, ReadOnlySpan<KeyValuePair<string, object?>> tags, object? state) => _metrics.Add(instrument.Name, measurement));
+            (Instrument instrument, double measurement, ReadOnlySpan<KeyValuePair<string, object?>> tags, object? state) => _metrics[instrument.Name] = measurement);
 
         _meterListener.SetMeasurementEventCallback(
-            (Instrument instrument, int measurement, ReadOnlySpan<KeyValuePair<string, object?>> tags, object? state) => _metrics.Add(instrument.Name, measurement));
+            (Instrument instrument, int measurement, ReadOnlySpan<KeyValuePair<string, object?>> tags, object? state) => _metrics[instrument.Name] = measurement);
 
         _meterListener.Start();
+    }
+
+    [OneTimeTearDown]
+    public void DisposeListener()
+    {
+        // MetricsHelper is static state shared by every fixture in the run:
+        // leaving it enabled (or the listener alive) makes later fixtures
+        // throw inside server request handling.
+        MetricsHelper.IsEnabled = false;
+        _meterListener.Dispose();
     }
 
     [SetUp]

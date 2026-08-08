@@ -4,6 +4,7 @@
 @inject UaWatchList WatchList
 @inject UaEventLog EventLog
 @inject BrowserState State
+@inject IJSRuntime Js
 
 <div class="panel tree-panel">
     <div class="panel-header">
@@ -11,11 +12,35 @@
         <button class="mini" title="Reload root" @onclick="ReloadAsync">⟳</button>
     </div>
     <div class="goto-box">
-        <input placeholder="Go to node, e.g. ns=3;s=MyNode"
-               @bind="_gotoText" @bind:event="oninput"
-               @onkeydown="OnGotoKeyDown" />
-        <button class="mini" title="Go to node" @onclick="GoToNodeAsync">→</button>
+        <input placeholder="Search name, or go to ns=3;s=NodeId"
+               @bind="_searchText" @bind:event="oninput"
+               @onkeydown="OnSearchKeyDown" />
+        <button class="mini" title="Search the address space" @onclick="SearchAsync">🔍</button>
     </div>
+    @if (_searching || _searchResults is not null)
+    {
+        <div class="search-results">
+            <div class="search-results-header">
+                @(_searching ? "Searching …" : $"{_searchResults!.Count} match(es)")
+                <button class="mini" title="Close results" @onclick="CloseSearch">✖</button>
+            </div>
+            @if (_searchResults is not null)
+            {
+                @foreach (var result in _searchResults)
+                {
+                    <div class="search-result" @onclick="() => RevealAsync(result.NodeId)">
+                        <span class="tree-icon">@NodeIcon(result.NodeClass)</span>
+                        <span class="search-result-name" title="@result.NodeId.ToString()">@result.DisplayName</span>
+                        <span class="dim mono">@result.NodeId.ToString()</span>
+                    </div>
+                }
+                @if (_searchResults.Count == 0)
+                {
+                    <div class="hint">No nodes matched.</div>
+                }
+            }
+        </div>
+    }
     <div class="panel-body tree-body">
         @if (_roots.Count == 0)
         {
@@ -35,17 +60,37 @@
 
 @code {
     private readonly List<UaTreeNode> _roots = [];
-    private string _gotoText = "";
+    private string _searchText = "";
+    private bool _searching;
+    private List<UaTreeNode>? _searchResults;
+    private CancellationTokenSource? _searchCts;
 
     [Parameter] public EventCallback<UaTreeNode> OnCallMethod { get; set; }
 
     protected override void OnInitialized()
     {
         State.SelectionChanged += OnStateChanged;
+        State.RevealRequested += OnRevealRequested;
     }
 
     private void OnStateChanged()
         => _ = InvokeAsync(StateHasChanged);
+
+    private void OnRevealRequested(NodeId nodeId)
+        => _ = InvokeAsync(() => RevealAsync(nodeId));
+
+    internal static string NodeIcon(NodeClass nodeClass) => nodeClass switch
+    {
+        NodeClass.Object => "📁",
+        NodeClass.Variable => "📊",
+        NodeClass.Method => "ƒ",
+        NodeClass.View => "🗂",
+        NodeClass.ObjectType => "🧩",
+        NodeClass.VariableType => "🧬",
+        NodeClass.DataType => "🔢",
+        NodeClass.ReferenceType => "🔗",
+        _ => "•",
+    };
 
     /// <summary>
     /// Load the top of the address space (Objects, Types, Views).
@@ -53,6 +98,7 @@
     public async Task ReloadAsync()
     {
         _roots.Clear();
+        CloseSearch();
         State.Select(null);
 
         try
@@ -64,7 +110,7 @@
             var objects = _roots.FirstOrDefault(r => r.NodeId == ObjectIds.ObjectsFolder);
             if (objects is not null)
             {
-                await ToggleAsync(objects);
+                await EnsureExpandedAsync(objects);
             }
         }
         catch (Exception ex)
@@ -78,6 +124,7 @@
     public void Clear()
     {
         _roots.Clear();
+        CloseSearch();
         State.Select(null);
         StateHasChanged();
     }
@@ -88,6 +135,17 @@
         {
             node.IsExpanded = false;
             StateHasChanged();
+            return;
+        }
+
+        await EnsureExpandedAsync(node);
+        StateHasChanged();
+    }
+
+    private async Task EnsureExpandedAsync(UaTreeNode node)
+    {
+        if (node.IsExpanded)
+        {
             return;
         }
 
@@ -115,8 +173,6 @@
         {
             node.IsLoading = false;
         }
-
-        StateHasChanged();
     }
 
     public Task SelectAsync(UaTreeNode node)
@@ -154,40 +210,164 @@
         }
     }
 
-    private async Task OnGotoKeyDown(KeyboardEventArgs e)
+    /// <summary>
+    /// Expand the tree along the browse path of a node, select it, and scroll it into view.
+    /// </summary>
+    public async Task RevealAsync(NodeId nodeId)
     {
-        if (e.Key == "Enter")
+        try
         {
-            await GoToNodeAsync();
+            var path = await Browser.GetBrowsePathAsync(nodeId);
+            if (path.Count == 0)
+            {
+                await SelectResolvedAsync(nodeId);
+                return;
+            }
+
+            var level = _roots;
+            UaTreeNode? current = null;
+
+            foreach ((var pathNodeId, _) in path)
+            {
+                current = level.FirstOrDefault(n => n.NodeId == pathNodeId);
+                if (current is null)
+                {
+                    break;
+                }
+
+                if (pathNodeId != nodeId)
+                {
+                    await EnsureExpandedAsync(current);
+                    level = current.Children;
+                }
+            }
+
+            if (current is not null && current.NodeId == nodeId)
+            {
+                State.Select(current);
+            }
+            else
+            {
+                // Not reachable through the visible tree; select detached.
+                await SelectResolvedAsync(nodeId);
+            }
+
+            CloseSearch();
+            StateHasChanged();
+
+            try
+            {
+                await Js.InvokeVoidAsync("uascope.scrollToSelected");
+            }
+            catch
+            {
+                // Scrolling is cosmetic.
+            }
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Could not reveal node: {ex.Message}", isError: true);
         }
     }
 
-    private async Task GoToNodeAsync()
+    private async Task SelectResolvedAsync(NodeId nodeId)
     {
-        if (string.IsNullOrWhiteSpace(_gotoText))
+        var node = await Browser.ResolveNodeAsync(nodeId.ToString());
+        if (node is not null)
+        {
+            State.Select(node);
+        }
+        else
+        {
+            State.Notify($"Node not found: {nodeId}", isError: true);
+        }
+    }
+
+    private async Task OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            CloseSearch();
+        }
+    }
+
+    private async Task SearchAsync()
+    {
+        var text = _searchText.Trim();
+        if (string.IsNullOrEmpty(text))
         {
             return;
         }
 
-        try
+        // A NodeId string jumps straight to the node.
+        if (text.StartsWith("ns=", StringComparison.OrdinalIgnoreCase)
+            || text.StartsWith("i=", StringComparison.OrdinalIgnoreCase)
+            || text.StartsWith("s=", StringComparison.OrdinalIgnoreCase)
+            || text.StartsWith("g=", StringComparison.OrdinalIgnoreCase)
+            || text.StartsWith("b=", StringComparison.OrdinalIgnoreCase))
         {
-            var node = await Browser.ResolveNodeAsync(_gotoText.Trim());
-            if (node is null)
+            try
             {
-                State.Notify($"Node not found: {_gotoText}", isError: true);
-                return;
+                await RevealAsync(NodeId.Parse(text));
+            }
+            catch (Exception)
+            {
+                State.Notify($"Could not parse node id: {text}", isError: true);
             }
 
-            State.Select(node);
+            return;
+        }
+
+        _searchCts?.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+
+        _searching = true;
+        _searchResults = null;
+        StateHasChanged();
+
+        try
+        {
+            var results = await Browser.SearchAsync(text, maxResults: 50, maxNodesVisited: 5000, ct);
+            if (!ct.IsCancellationRequested)
+            {
+                _searchResults = results;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer search.
         }
         catch (Exception ex)
         {
-            State.Notify($"Could not resolve node: {ex.Message}", isError: true);
+            State.Notify($"Search failed: {ex.Message}", isError: true);
         }
+        finally
+        {
+            if (!ct.IsCancellationRequested)
+            {
+                _searching = false;
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private void CloseSearch()
+    {
+        _searchCts?.Cancel();
+        _searching = false;
+        _searchResults = null;
     }
 
     public void Dispose()
     {
+        _searchCts?.Cancel();
         State.SelectionChanged -= OnStateChanged;
+        State.RevealRequested -= OnRevealRequested;
     }
 }

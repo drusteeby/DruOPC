@@ -1,8 +1,10 @@
 @using Opc.Ua
+@using System.Text
 @implements IDisposable
 @inject UaWatchList WatchList
 @inject UaBrowserService Browser
 @inject BrowserState State
+@inject IJSRuntime Js
 
 <div class="panel watch-panel">
     <div class="panel-header">
@@ -29,7 +31,8 @@
                     <option value="1000">1 s</option>
                 </select>
             </label>
-            <button class="mini" title="Remove all" @onclick="() => WatchList.ClearAsync()" disabled="@(WatchList.Items.Count == 0)">🗑</button>
+            <button class="mini" title="Export as CSV" @onclick="ExportCsvAsync" disabled="@(WatchList.Items.Count == 0)">⭳ csv</button>
+            <button class="mini" title="Remove all" @onclick="ClearAsync" disabled="@(WatchList.Items.Count == 0)">🗑</button>
         </span>
     </div>
     <div class="panel-body">
@@ -43,11 +46,10 @@
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th>Node id</th>
                         <th>Value</th>
+                        <th>Trend</th>
                         <th>Type</th>
                         <th>Source time</th>
-                        <th>Server time</th>
                         <th>Status</th>
                         <th></th>
                     </tr>
@@ -56,22 +58,24 @@
                     @foreach (var item in WatchList.Items)
                     {
                         <tr class="@(item.IsBad ? "bad" : "")">
-                            <td title="@item.NodeIdText">@item.DisplayName</td>
-                            <td class="mono dim">@item.NodeIdText</td>
-                            <td class="mono value-cell @(FlashClass(item))">
+                            <td>
+                                <div title="@item.NodeIdText">@item.DisplayName</div>
+                                <div class="mono dim node-id-small">@item.NodeIdText</div>
+                            </td>
+                            <td class="mono value-cell @(FlashClass(item))" title="@item.Value">
                                 @if (_editing == item)
                                 {
                                     <input class="write-input" @bind="_editValue" @bind:event="oninput"
-                                           @onkeydown="e => OnWriteKeyDown(e, item)" autofocus />
+                                           @onkeydown="e => OnWriteKeyDown(e, item)" />
                                 }
                                 else
                                 {
                                     @item.Value
                                 }
                             </td>
+                            <td class="spark-cell">@RenderSparkline(item)</td>
                             <td>@item.DataType</td>
                             <td class="mono dim">@item.SourceTimestamp</td>
-                            <td class="mono dim">@item.ServerTimestamp</td>
                             <td class="@(item.IsBad ? "status-bad" : "status-good")">@item.StatusCode</td>
                             <td class="row-actions">
                                 @if (item.IsWritable)
@@ -86,6 +90,8 @@
                                         <button class="mini" title="Write a new value" @onclick="() => StartWrite(item)">✎</button>
                                     }
                                 }
+                                <button class="mini" title="Copy value" @onclick="() => CopyAsync(item.Value)">⧉</button>
+                                <button class="mini" title="Show in tree" @onclick="() => State.RequestReveal(item.NodeId)">🎯</button>
                                 <button class="mini" title="Remove from watch list" @onclick="() => WatchList.RemoveAsync(item)">–</button>
                             </td>
                         </tr>
@@ -99,10 +105,19 @@
 @code {
     private UaWatchItem? _editing;
     private string _editValue = "";
+    private System.Threading.Timer? _uiTimer;
 
     protected override void OnInitialized()
     {
         WatchList.Changed += OnChanged;
+
+        // Periodic tick so transient styling (flash) and stale timestamps
+        // refresh even when no new notifications arrive.
+        _uiTimer = new System.Threading.Timer(
+            _ => InvokeAsync(StateHasChanged),
+            null,
+            dueTime: 1000,
+            period: 1000);
     }
 
     private void OnChanged()
@@ -110,6 +125,52 @@
 
     private static string FlashClass(UaWatchItem item)
         => (DateTime.UtcNow - item.LastUpdateUtc).TotalMilliseconds < 700 ? "flash" : "";
+
+    private static readonly RenderFragment _empty = _ => { };
+
+    private RenderFragment RenderSparkline(UaWatchItem item)
+    {
+        double[] history = item.HistorySnapshot();
+        if (history.Length < 2)
+        {
+            return _empty;
+        }
+
+        double min = history.Min();
+        double max = history.Max();
+        double range = max - min;
+        const double width = 96;
+        const double height = 22;
+
+        var points = new StringBuilder();
+        for (int i = 0; i < history.Length; i++)
+        {
+            double x = i * width / (history.Length - 1);
+            double y = range < 1e-12
+                ? height / 2
+                : height - 2 - (history[i] - min) / range * (height - 4);
+            points.Append(x.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture));
+            points.Append(',');
+            points.Append(y.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture));
+            points.Append(' ');
+        }
+
+        string title = $"min {UaFormat.FormatValue(min)} / max {UaFormat.FormatValue(max)}";
+        return builder =>
+        {
+            builder.OpenElement(0, "svg");
+            builder.AddAttribute(1, "class", "sparkline");
+            builder.AddAttribute(2, "viewBox", $"0 0 {width} {height}");
+            builder.AddAttribute(3, "preserveAspectRatio", "none");
+            builder.OpenElement(4, "title");
+            builder.AddContent(5, title);
+            builder.CloseElement();
+            builder.OpenElement(6, "polyline");
+            builder.AddAttribute(7, "points", points.ToString());
+            builder.CloseElement();
+            builder.CloseElement();
+        };
+    }
 
     private void StartWrite(UaWatchItem item)
     {
@@ -163,8 +224,53 @@
         }
     }
 
+    private async Task ClearAsync()
+    {
+        try
+        {
+            await WatchList.ClearAsync();
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Could not clear the watch list: {ex.Message}", isError: true);
+        }
+    }
+
+    private async Task CopyAsync(string text)
+    {
+        try
+        {
+            await Js.InvokeAsync<bool>("uascope.copyText", text);
+            State.Notify("Copied value");
+        }
+        catch (Exception)
+        {
+            State.Notify("Could not access the clipboard", isError: true);
+        }
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        var sb = new StringBuilder("Name,NodeId,Value,DataType,SourceTimestamp,ServerTimestamp,StatusCode\n");
+        foreach (var item in WatchList.Items)
+        {
+            sb.AppendLine(string.Join(',',
+                Csv(item.DisplayName), Csv(item.NodeIdText), Csv(item.Value),
+                Csv(item.DataType), Csv(item.SourceTimestamp), Csv(item.ServerTimestamp), Csv(item.StatusCode)));
+        }
+
+        await Js.InvokeVoidAsync("uascope.downloadFile",
+            $"uascope-watch-{DateTime.Now:yyyyMMdd-HHmmss}.csv", "text/csv", sb.ToString());
+    }
+
+    private static string Csv(string value)
+        => value.Contains(',') || value.Contains('"') || value.Contains('\n')
+            ? $"\"{value.Replace("\"", "\"\"")}\""
+            : value;
+
     public void Dispose()
     {
+        _uiTimer?.Dispose();
         WatchList.Changed -= OnChanged;
     }
 

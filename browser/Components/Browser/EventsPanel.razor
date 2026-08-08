@@ -1,5 +1,8 @@
+@using System.Text
 @implements IDisposable
 @inject UaEventLog EventLog
+@inject BrowserState State
+@inject IJSRuntime Js
 
 <div class="panel events-panel">
     <div class="panel-header">
@@ -12,8 +15,9 @@
             <span class="count-badge">@EventLog.Events.Count</span>
         </span>
         <span class="header-controls">
+            <button class="mini" title="Export as CSV" @onclick="ExportCsvAsync" disabled="@(EventLog.Events.Count == 0)">⭳ csv</button>
             <button class="mini" title="Clear received events" @onclick="() => EventLog.Clear()">🗑</button>
-            <button class="mini" title="Stop event subscription" @onclick="() => EventLog.StopAsync()" disabled="@(!EventLog.IsActive)">⏹</button>
+            <button class="mini" title="Stop event subscription" @onclick="StopAsync" disabled="@(!EventLog.IsActive)">⏹</button>
         </span>
     </div>
     <div class="panel-body">
@@ -57,6 +61,37 @@
         => int.TryParse(severity, out int value)
             ? value >= 700 ? "high" : value >= 400 ? "mid" : "low"
             : "low";
+
+    private async Task StopAsync()
+    {
+        try
+        {
+            await EventLog.StopAsync();
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Could not stop the event subscription: {ex.Message}", isError: true);
+        }
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        var sb = new StringBuilder("ReceivedUtc,Time,Severity,Source,EventType,Message\n");
+        foreach (var e in EventLog.Events)
+        {
+            sb.AppendLine(string.Join(',',
+                Csv(e.ReceivedUtc.ToString("o")), Csv(e.Time), Csv(e.Severity),
+                Csv(e.SourceName), Csv(e.EventType), Csv(e.Message)));
+        }
+
+        await Js.InvokeVoidAsync("uascope.downloadFile",
+            $"uascope-events-{DateTime.Now:yyyyMMdd-HHmmss}.csv", "text/csv", sb.ToString());
+    }
+
+    private static string Csv(string value)
+        => value.Contains(',') || value.Contains('"') || value.Contains('\n')
+            ? $"\"{value.Replace("\"", "\"\"")}\""
+            : value;
 
     public void Dispose()
     {

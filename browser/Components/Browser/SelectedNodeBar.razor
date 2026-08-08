@@ -1,0 +1,113 @@
+@using Opc.Ua
+@implements IDisposable
+@inject UaBrowserService Browser
+@inject UaConnection Connection
+@inject BrowserState State
+@inject IJSRuntime Js
+@inject NavigationManager Navigation
+
+<div class="node-bar">
+    @if (State.SelectedNode is { } node)
+    {
+        <div class="node-bar-title">
+            <span class="tree-icon">@AddressTree.NodeIcon(node.NodeClass)</span>
+            <span class="node-bar-name">@node.DisplayName</span>
+            <span class="dim">@node.NodeClass</span>
+            <span class="node-bar-actions">
+                <button class="mini" title="Reveal in tree" @onclick="() => State.RequestReveal(node.NodeId)">🎯</button>
+                <button class="mini" title="Copy NodeId" @onclick="() => CopyNodeIdAsync(node)">⧉ id</button>
+                <button class="mini" title="Copy a shareable link to this node" @onclick="() => CopyLinkAsync(node)">⧉ link</button>
+            </span>
+        </div>
+        <div class="node-bar-id mono" title="NodeId">@node.NodeId.ToString()</div>
+        @if (_breadcrumb.Count > 0)
+        {
+            <div class="breadcrumb">
+                @for (int i = 0; i < _breadcrumb.Count; i++)
+                {
+                    var crumb = _breadcrumb[i];
+                    if (i > 0)
+                    {
+                        <span class="crumb-sep">›</span>
+                    }
+                    <a class="crumb" @onclick="() => State.RequestReveal(crumb.NodeId)">@crumb.DisplayName</a>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        <div class="hint-inline">No node selected</div>
+    }
+</div>
+
+@code {
+    private List<(NodeId NodeId, string DisplayName)> _breadcrumb = [];
+    private NodeId? _breadcrumbFor;
+
+    protected override void OnInitialized()
+    {
+        State.SelectionChanged += OnSelectionChanged;
+    }
+
+    private void OnSelectionChanged()
+        => _ = InvokeAsync(async () =>
+        {
+            var node = State.SelectedNode;
+            if (node is null)
+            {
+                _breadcrumb = [];
+                _breadcrumbFor = null;
+                StateHasChanged();
+                return;
+            }
+
+            if (node.NodeId == _breadcrumbFor)
+            {
+                return;
+            }
+
+            StateHasChanged(); // Show the new title immediately.
+
+            try
+            {
+                _breadcrumb = await Browser.GetBrowsePathAsync(node.NodeId);
+                _breadcrumbFor = node.NodeId;
+            }
+            catch (Exception)
+            {
+                _breadcrumb = [];
+            }
+
+            StateHasChanged();
+        });
+
+    private Task CopyNodeIdAsync(UaTreeNode node)
+        => CopyAsync(node.NodeId.ToString(), $"NodeId {node.NodeId}");
+
+    private async Task CopyAsync(string text, string what)
+    {
+        try
+        {
+            await Js.InvokeAsync<bool>("uascope.copyText", text);
+            State.Notify($"Copied {what}");
+        }
+        catch (Exception)
+        {
+            State.Notify("Could not access the clipboard", isError: true);
+        }
+    }
+
+    private async Task CopyLinkAsync(UaTreeNode node)
+    {
+        string endpoint = Connection.SessionInfo?.EndpointUrl ?? "";
+        string link = Navigation.BaseUri
+            + $"?endpoint={Uri.EscapeDataString(endpoint)}&node={Uri.EscapeDataString(node.NodeId.ToString())}";
+        await CopyAsync(link, "link");
+    }
+
+    public void Dispose()
+    {
+        State.SelectionChanged -= OnSelectionChanged;
+    }
+}

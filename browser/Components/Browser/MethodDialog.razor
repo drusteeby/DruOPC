@@ -95,8 +95,10 @@
 
         try
         {
-            _objectId = methodNode.Parent?.NodeId
-                ?? await Browser.FindMethodParentAsync(methodNode.NodeId);
+            // The HasComponent owner is the correct Call target; the tree
+            // parent may be an organizing folder.
+            _objectId = await Browser.FindMethodParentAsync(methodNode.NodeId)
+                ?? methodNode.Parent?.NodeId;
 
             if (_objectId is null)
             {
@@ -139,6 +141,19 @@
             for (int i = 0; i < _outputs.Count && i < outputs.Count; i++)
             {
                 _outputs[i].Value = UaFormat.FormatValue(outputs[i]);
+            }
+
+            // Show returned values even when the method declares no
+            // OutputArguments property (or returns extras).
+            for (int i = _outputs.Count; i < outputs.Count; i++)
+            {
+                _outputs.Add(new UaMethodArgument
+                {
+                    Name = $"out[{i}]",
+                    DataTypeName = outputs[i]?.GetType().Name ?? "null",
+                    DataTypeId = Opc.Ua.NodeId.Null,
+                    Value = UaFormat.FormatValue(outputs[i]),
+                });
             }
 
             _called = true;

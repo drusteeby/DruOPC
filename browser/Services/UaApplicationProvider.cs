@@ -4,13 +4,15 @@ using Opc.Ua;
 using Opc.Ua.Configuration;
 
 /// <summary>
-/// Builds and caches the OPC UA client application configuration,
-/// including the client application instance certificate.
+/// Builds OPC UA client application configurations. The client application
+/// certificate is created/validated once per process; each circuit gets its
+/// OWN configuration instance so certificate-validation decisions of one
+/// browser tab never leak into another.
 /// </summary>
 public sealed class UaApplicationProvider
 {
-    private readonly SemaphoreSlim _lock = new(1, 1);
-    private ApplicationConfiguration? _configuration;
+    private static readonly SemaphoreSlim _certificateLock = new(1, 1);
+    private static bool _certificateChecked;
 
     /// <summary>
     /// Root directory for the client PKI stores.
@@ -21,77 +23,82 @@ public sealed class UaApplicationProvider
         "pki");
 
     /// <summary>
-    /// Create (once) and return the client application configuration.
+    /// Create a new client application configuration (one per circuit).
     /// </summary>
-    public async Task<ApplicationConfiguration> GetConfigurationAsync()
+    public async Task<ApplicationConfiguration> CreateConfigurationAsync()
     {
-        if (_configuration is not null)
+        var config = new ApplicationConfiguration
         {
-            return _configuration;
+            ApplicationName = "UaScope",
+            ApplicationUri = $"urn:{Utils.GetHostName()}:UaScope",
+            ProductUri = "urn:uascope:opcua:browser",
+            ApplicationType = ApplicationType.Client,
+            SecurityConfiguration = new SecurityConfiguration
+            {
+                ApplicationCertificate = new CertificateIdentifier
+                {
+                    StoreType = CertificateStoreType.Directory,
+                    StorePath = Path.Combine(PkiRoot, "own"),
+                    SubjectName = $"CN=UaScope, DC={Utils.GetHostName()}",
+                },
+                TrustedIssuerCertificates = new CertificateTrustList
+                {
+                    StoreType = CertificateStoreType.Directory,
+                    StorePath = Path.Combine(PkiRoot, "issuer"),
+                },
+                TrustedPeerCertificates = new CertificateTrustList
+                {
+                    StoreType = CertificateStoreType.Directory,
+                    StorePath = Path.Combine(PkiRoot, "trusted"),
+                },
+                RejectedCertificateStore = new CertificateTrustList
+                {
+                    StoreType = CertificateStoreType.Directory,
+                    StorePath = Path.Combine(PkiRoot, "rejected"),
+                },
+                // Trust decisions are made per connection in UaConnection.
+                AutoAcceptUntrustedCertificates = false,
+                AddAppCertToTrustedStore = true,
+                RejectSHA1SignedCertificates = false,
+                MinimumCertificateKeySize = 1024,
+            },
+            TransportConfigurations = new TransportConfigurationCollection(),
+            TransportQuotas = new TransportQuotas
+            {
+                OperationTimeout = 60_000,
+                MaxStringLength = 4 * 1024 * 1024,
+                MaxByteStringLength = 4 * 1024 * 1024,
+                MaxArrayLength = 65_535,
+                MaxMessageSize = 16 * 1024 * 1024,
+            },
+            ClientConfiguration = new ClientConfiguration
+            {
+                DefaultSessionTimeout = 60_000,
+                MinSubscriptionLifetime = 10_000,
+            },
+            CertificateValidator = new CertificateValidator(),
+        };
+
+        await config.Validate(ApplicationType.Client).ConfigureAwait(false);
+
+        await EnsureClientCertificateAsync(config).ConfigureAwait(false);
+
+        return config;
+    }
+
+    private static async Task EnsureClientCertificateAsync(ApplicationConfiguration config)
+    {
+        if (_certificateChecked)
+        {
+            // The certificate exists on disk; load it into this configuration.
+            await config.SecurityConfiguration.ApplicationCertificate
+                .Find(needPrivateKey: true).ConfigureAwait(false);
+            return;
         }
 
-        await _lock.WaitAsync().ConfigureAwait(false);
+        await _certificateLock.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (_configuration is not null)
-            {
-                return _configuration;
-            }
-
-            var config = new ApplicationConfiguration
-            {
-                ApplicationName = "UaScope",
-                ApplicationUri = $"urn:{Utils.GetHostName()}:UaScope",
-                ProductUri = "urn:uascope:opcua:browser",
-                ApplicationType = ApplicationType.Client,
-                SecurityConfiguration = new SecurityConfiguration
-                {
-                    ApplicationCertificate = new CertificateIdentifier
-                    {
-                        StoreType = CertificateStoreType.Directory,
-                        StorePath = Path.Combine(PkiRoot, "own"),
-                        SubjectName = $"CN=UaScope, DC={Utils.GetHostName()}",
-                    },
-                    TrustedIssuerCertificates = new CertificateTrustList
-                    {
-                        StoreType = CertificateStoreType.Directory,
-                        StorePath = Path.Combine(PkiRoot, "issuer"),
-                    },
-                    TrustedPeerCertificates = new CertificateTrustList
-                    {
-                        StoreType = CertificateStoreType.Directory,
-                        StorePath = Path.Combine(PkiRoot, "trusted"),
-                    },
-                    RejectedCertificateStore = new CertificateTrustList
-                    {
-                        StoreType = CertificateStoreType.Directory,
-                        StorePath = Path.Combine(PkiRoot, "rejected"),
-                    },
-                    // Trust decisions are made per connection in UaConnection.
-                    AutoAcceptUntrustedCertificates = false,
-                    AddAppCertToTrustedStore = true,
-                    RejectSHA1SignedCertificates = false,
-                    MinimumCertificateKeySize = 1024,
-                },
-                TransportConfigurations = new TransportConfigurationCollection(),
-                TransportQuotas = new TransportQuotas
-                {
-                    OperationTimeout = 60_000,
-                    MaxStringLength = 4 * 1024 * 1024,
-                    MaxByteStringLength = 4 * 1024 * 1024,
-                    MaxArrayLength = 65_535,
-                    MaxMessageSize = 16 * 1024 * 1024,
-                },
-                ClientConfiguration = new ClientConfiguration
-                {
-                    DefaultSessionTimeout = 60_000,
-                    MinSubscriptionLifetime = 10_000,
-                },
-                CertificateValidator = new CertificateValidator(),
-            };
-
-            await config.Validate(ApplicationType.Client).ConfigureAwait(false);
-
             var application = new ApplicationInstance
             {
                 ApplicationName = config.ApplicationName,
@@ -106,12 +113,11 @@ public sealed class UaApplicationProvider
                 throw new InvalidOperationException("Could not create or load the UaScope client application certificate.");
             }
 
-            _configuration = config;
-            return _configuration;
+            _certificateChecked = true;
         }
         finally
         {
-            _lock.Release();
+            _certificateLock.Release();
         }
     }
 }

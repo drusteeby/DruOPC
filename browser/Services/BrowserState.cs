@@ -1,5 +1,7 @@
 namespace UaScope.Services;
 
+using Opc.Ua;
+
 /// <summary>
 /// Per-circuit UI state shared between components.
 /// </summary>
@@ -11,11 +13,20 @@ public sealed class BrowserState
 
     public event Action<string, bool>? Notified;
 
+    /// <summary>Raised when a component asks the tree to expand to and show a node.</summary>
+    public event Action<NodeId>? RevealRequested;
+
     public void Select(UaTreeNode? node)
     {
         SelectedNode = node;
         SelectionChanged?.Invoke();
     }
+
+    /// <summary>
+    /// Ask the address tree to expand down to the given node and select it.
+    /// </summary>
+    public void RequestReveal(NodeId nodeId)
+        => RevealRequested?.Invoke(nodeId);
 
     /// <summary>
     /// Show a transient notification toast.

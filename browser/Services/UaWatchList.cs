@@ -9,24 +9,30 @@ using Opc.Ua.Client;
 /// </summary>
 public sealed class UaWatchList : IAsyncDisposable
 {
+    private const string SubscriptionName = "UaScope watch list";
+
     private readonly UaConnection _connection;
     private readonly UaBrowserService _browser;
     private readonly ILogger<UaWatchList> _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly List<UaWatchItem> _items = [];
 
+    private volatile UaWatchItem[] _itemsSnapshot = [];
     private Subscription? _subscription;
-    private uint _nextHandle = 1;
 
     public UaWatchList(UaConnection connection, UaBrowserService browser, ILogger<UaWatchList> logger)
     {
         _connection = connection;
         _browser = browser;
         _logger = logger;
+
+        // After a reconnect that recreated the session, our subscription was
+        // cloned onto the new session object: re-bind to the clone.
+        _connection.SessionReplaced += OnSessionReplaced;
     }
 
-    /// <summary>Snapshot of the current items (do not mutate).</summary>
-    public IReadOnlyList<UaWatchItem> Items => _items;
+    /// <summary>Thread-safe snapshot of the current items.</summary>
+    public IReadOnlyList<UaWatchItem> Items => _itemsSnapshot;
 
     public int PublishingIntervalMs { get; private set; } = 500;
 
@@ -55,7 +61,6 @@ public sealed class UaWatchList : IAsyncDisposable
 
             var item = new UaWatchItem
             {
-                ClientHandle = _nextHandle++,
                 NodeId = nodeId,
                 DisplayName = displayName,
             };
@@ -97,6 +102,7 @@ public sealed class UaWatchList : IAsyncDisposable
             await _subscription.ApplyChangesAsync().ConfigureAwait(false);
 
             _items.Add(item);
+            _itemsSnapshot = _items.ToArray();
         }
         finally
         {
@@ -115,6 +121,7 @@ public sealed class UaWatchList : IAsyncDisposable
         try
         {
             _items.Remove(item);
+            _itemsSnapshot = _items.ToArray();
 
             if (_subscription is not null)
             {
@@ -131,6 +138,10 @@ public sealed class UaWatchList : IAsyncDisposable
                     await TearDownSubscriptionAsync().ConfigureAwait(false);
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error removing monitored item {NodeId}", item.NodeId);
         }
         finally
         {
@@ -149,6 +160,7 @@ public sealed class UaWatchList : IAsyncDisposable
         try
         {
             _items.Clear();
+            _itemsSnapshot = [];
             await TearDownSubscriptionAsync().ConfigureAwait(false);
         }
         finally
@@ -184,12 +196,34 @@ public sealed class UaWatchList : IAsyncDisposable
             await _subscription.ModifyAsync().ConfigureAwait(false);
             await _subscription.ApplyChangesAsync().ConfigureAwait(false);
         }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error changing subscription intervals");
+        }
         finally
         {
             _lock.Release();
         }
 
         Changed?.Invoke();
+    }
+
+    private void OnSessionReplaced(Session newSession)
+    {
+        // The SDK cloned our subscription (including monitored items, their
+        // Handle and Notification handlers) onto the new session.
+        var clone = newSession.Subscriptions
+            .FirstOrDefault(s => s.DisplayName == SubscriptionName);
+
+        if (clone is not null)
+        {
+            _subscription = clone;
+            _logger.LogInformation("Watch list re-bound to recreated session");
+        }
+        else if (_items.Count > 0)
+        {
+            _logger.LogWarning("Watch list subscription missing after reconnect");
+        }
     }
 
     private async Task EnsureSubscriptionAsync(Session session)
@@ -203,7 +237,7 @@ public sealed class UaWatchList : IAsyncDisposable
 
         _subscription = new Subscription(session.DefaultSubscription)
         {
-            DisplayName = "UaScope watch list",
+            DisplayName = SubscriptionName,
             PublishingInterval = PublishingIntervalMs,
             KeepAliveCount = 10,
             LifetimeCount = 1000,
@@ -244,6 +278,7 @@ public sealed class UaWatchList : IAsyncDisposable
 
         foreach (var value in monitoredItem.DequeueValues())
         {
+            item.PushHistory(value.Value);
             item.Value = UaFormat.FormatValue(value.Value);
             item.StatusCode = UaFormat.FormatStatusCode(value.StatusCode);
             item.IsBad = StatusCode.IsBad(value.StatusCode);
@@ -258,6 +293,8 @@ public sealed class UaWatchList : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _connection.SessionReplaced -= OnSessionReplaced;
+
         try
         {
             await ClearAsync().ConfigureAwait(false);

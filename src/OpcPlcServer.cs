@@ -152,28 +152,11 @@ public class OpcPlcServer : BackgroundService
     }
 
     /// <summary>
-    /// Restart the PLC server and simulation.
-    /// </summary>
-    public async Task RestartAsync()
-    {
-        _logger.LogInformation("Stopping PLC server and simulation ...");
-        PlcServer.Stop();
-        PlcSimulationInstance.Stop();
-
-        _logger.LogInformation("Restarting PLC server and simulation ...");
-        LogLogo();
-
-        await StartPlcServerAndSimulationAsync().ConfigureAwait(false);
-    }
-
-    
-
-    /// <summary>
     /// Start the server.
     /// </summary>
     private async Task StartPlcServerAsync(CancellationToken cancellationToken)
     {
-        await StartPlcServerAndSimulationAsync().ConfigureAwait(false);
+        await StartPlcServerAndSimulationAsync(cancellationToken).ConfigureAwait(false);
 
         if (_config.ShowPublisherConfigJsonIp)
         {
@@ -202,7 +185,7 @@ public class OpcPlcServer : BackgroundService
         await cancellationToken.WhenCanceled().ConfigureAwait(false);
     }
 
-    private async Task StartPlcServerAndSimulationAsync()
+    private async Task StartPlcServerAndSimulationAsync(CancellationToken cancellationToken)
     {
         // init OPC configuration and tracing
         var opcUaAppConfigFactory = new OpcUaAppConfigFactory(_config, _logger, LoggerFactory);
@@ -227,11 +210,14 @@ public class OpcPlcServer : BackgroundService
         _logger.LogInformation("Certificate authentication: {CertAuth}", _config.DisableCertAuth ? "Disabled" : "Enabled");
 
         // Add simple events, alarms, reference test simulation and deterministic alarms.
+        cancellationToken.ThrowIfCancellationRequested();
+
         PlcServer = new PlcServer(_config, PlcSimulationInstance, _timeService, PlcSimulationInstance.PluginNodes, _logger);
         PlcServer.Start(plcApplicationConfiguration);
         _logger.LogInformation("OPC UA Server started");
 
-        // Add remaining base simulations.
+        // Add remaining base simulations, unless shutdown has already begun.
+        cancellationToken.ThrowIfCancellationRequested();
         PlcSimulationInstance.Start(PlcServer);
     }
 

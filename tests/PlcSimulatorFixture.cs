@@ -131,6 +131,7 @@ public class PlcSimulatorFixture
             ["OpcPlc:TagWriter:Enabled"] = "false",
             ["OpcPlc:ShowPublisherConfigJsonIp"] = "false",
             ["OpcPlc:ShowPublisherConfigJsonPh"] = "false",
+            ["OpcPlc:WebServerPort"] = "0",
             ["OpcPlc:NodesFile"] = "",
         };
 
@@ -142,6 +143,16 @@ public class PlcSimulatorFixture
         }
 
         _app = Program.CreateApplication(Array.Empty<string>(), builder => {
+            // Tests must not inherit the production appsettings.json that is
+            // copied to the test output; rely on code defaults + overrides only.
+            for (int i = builder.Configuration.Sources.Count - 1; i >= 0; i--)
+            {
+                if (builder.Configuration.Sources[i] is Microsoft.Extensions.Configuration.Json.JsonConfigurationSource)
+                {
+                    builder.Configuration.Sources.RemoveAt(i);
+                }
+            }
+
             builder.Configuration.AddInMemoryCollection(settings);
 
             // Do not fight over the fixed web server port; any free port will do.
@@ -314,10 +325,24 @@ public class PlcSimulatorFixture
     private async Task<string> WaitForServerUpAsync()
     {
         var readyTask = _opcPlcServer.WaitUntilReadyAsync();
+        var serverTask = _opcPlcServer.ExecuteTask ?? Task.Delay(Timeout.Infinite);
+        var timeout = Task.Delay(TimeSpan.FromMinutes(3));
 
         while (true)
         {
-            var completed = await Task.WhenAny(readyTask, Task.Delay(1000)).ConfigureAwait(false);
+            var completed = await Task.WhenAny(readyTask, serverTask, timeout, Task.Delay(1000)).ConfigureAwait(false);
+
+            if (completed == serverTask)
+            {
+                await serverTask.ConfigureAwait(false); // Propagate the server fault, if any.
+                throw new Exception("The OPC PLC server exited before becoming ready.");
+            }
+
+            if (completed == timeout)
+            {
+                throw new TimeoutException("The OPC PLC server did not become ready within 3 minutes.");
+            }
+
             if (completed != readyTask)
             {
                 await _log.WriteLineAsync("Waiting for server to start ...").ConfigureAwait(false);

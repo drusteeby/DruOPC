@@ -1,12 +1,15 @@
 @page "/"
 @rendermode InteractiveServer
 @using Opc.Ua
+@using System.Web
 @implements IDisposable
 @inject UaConnection Connection
 @inject UaBrowserService Browser
 @inject UaWatchList WatchList
 @inject UaEventLog EventLog
 @inject BrowserState State
+@inject IJSRuntime Js
+@inject NavigationManager Navigation
 
 <PageTitle>UaScope – OPC UA Browser</PageTitle>
 
@@ -14,10 +17,16 @@
     <header class="topbar">
         <span class="brand">Ua<span class="brand-accent">Scope</span></span>
 
-        <input class="endpoint-input" placeholder="opc.tcp://localhost:50000"
+        <input class="endpoint-input" placeholder="opc.tcp://localhost:50000" list="recent-servers"
                @bind="_endpointUrl" @bind:event="oninput"
                @onkeydown="OnEndpointKeyDown"
                disabled="@(Connection.State is UaConnectionState.Connected or UaConnectionState.Connecting)" />
+        <datalist id="recent-servers">
+            @foreach (var server in _recentServers)
+            {
+                <option value="@server" />
+            }
+        </datalist>
 
         @if (Connection.State is UaConnectionState.Disconnected)
         {
@@ -40,7 +49,7 @@
                 <label class="check">
                     <input type="checkbox" @bind="_useSecurity" /> Prefer secure endpoint
                 </label>
-                <label class="check">
+                <label class="check" title="Skip the trust prompt for unknown server certificates">
                     <input type="checkbox" checked="@Connection.AutoAcceptServerCertificate"
                            @onchange="e => Connection.AutoAcceptServerCertificate = (bool)e.Value!" />
                     Auto-accept server certificate
@@ -69,6 +78,7 @@
         </section>
 
         <section class="right-panels">
+            <SelectedNodeBar />
             <AttributesPanel />
             <ReferencesPanel />
         </section>
@@ -98,6 +108,35 @@
 </div>
 
 <MethodDialog @ref="_methodDialog" />
+
+@* Server certificate trust dialog *@
+@if (Connection.PendingCertificate is { } pending)
+{
+    <div class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <span>Untrusted server certificate</span>
+            </div>
+            <div class="modal-body">
+                <p>The server presented a certificate that is not in the trusted store:</p>
+                <table class="grid">
+                    <tbody>
+                        <tr><td class="attr-name">Subject</td><td class="mono">@pending.Subject</td></tr>
+                        <tr><td class="attr-name">Issuer</td><td class="mono">@pending.Issuer</td></tr>
+                        <tr><td class="attr-name">Thumbprint</td><td class="mono">@pending.Thumbprint</td></tr>
+                        <tr><td class="attr-name">Valid</td><td>@pending.NotBefore.ToString("yyyy-MM-dd") – @pending.NotAfter.ToString("yyyy-MM-dd")</td></tr>
+                        <tr><td class="attr-name">Error</td><td>@pending.Error</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button class="primary" @onclick="() => TrustAndReconnectAsync(permanent: false)">Trust once</button>
+                <button @onclick="() => TrustAndReconnectAsync(permanent: true)">Trust permanently</button>
+                <button @onclick="DismissCertificate">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
 
 @* Endpoint discovery dialog *@
 @if (_showEndpoints)
@@ -190,8 +229,11 @@
     private bool _showEndpoints;
     private bool _discovering;
     private List<UaEndpointInfo> _endpoints = [];
+    private EndpointDescription? _lastEndpoint;
 
     private bool _showNamespaces;
+    private string[] _recentServers = [];
+    private string? _deepLinkNode;
 
     private readonly List<Toast> _toasts = [];
 
@@ -199,6 +241,39 @@
     {
         Connection.StateChanged += OnConnectionStateChanged;
         State.Notified += OnNotified;
+
+        // Deep link: /?endpoint=opc.tcp://…&node=ns=3;s=…
+        var query = HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query);
+        if (query["endpoint"] is { Length: > 0 } endpoint)
+        {
+            _endpointUrl = endpoint;
+        }
+
+        _deepLinkNode = query["node"];
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            _recentServers = await Js.InvokeAsync<string[]>("uascope.getRecentServers");
+            StateHasChanged();
+        }
+        catch (Exception)
+        {
+            // localStorage unavailable; not critical.
+        }
+
+        // Auto-connect when opened through a deep link.
+        if (_deepLinkNode is not null || Navigation.Uri.Contains("endpoint="))
+        {
+            await ConnectAsync(null);
+        }
     }
 
     private void OnConnectionStateChanged()
@@ -232,17 +307,48 @@
     {
         _busy = true;
         _showEndpoints = false;
+        _lastEndpoint = endpoint;
         StateHasChanged();
 
         try
         {
-            await Connection.ConnectAsync(_endpointUrl.Trim(), _useSecurity, BuildIdentity(), endpoint);
+            bool connected = await Connection.ConnectAsync(_endpointUrl.Trim(), _useSecurity, BuildIdentity(), endpoint);
+            if (!connected)
+            {
+                // An untrusted certificate is pending a trust decision;
+                // the dialog is rendered from Connection.PendingCertificate.
+                return;
+            }
+
             Browser.Reset();
             State.Notify($"Connected to {Connection.SessionInfo?.EndpointUrl}");
+
+            try
+            {
+                await Js.InvokeVoidAsync("uascope.addRecentServer", _endpointUrl.Trim());
+                _recentServers = await Js.InvokeAsync<string[]>("uascope.getRecentServers");
+            }
+            catch (Exception)
+            {
+                // localStorage unavailable; not critical.
+            }
 
             if (_tree is not null)
             {
                 await _tree.ReloadAsync();
+            }
+
+            if (_deepLinkNode is { Length: > 0 } deepLinkNode)
+            {
+                _deepLinkNode = null;
+                try
+                {
+                    State.RequestReveal(NodeId.Parse(deepLinkNode));
+                }
+                catch (Exception)
+                {
+                    State.Notify($"Could not open linked node: {deepLinkNode}", isError: true);
+                }
             }
         }
         catch (Exception ex)
@@ -254,6 +360,33 @@
             _busy = false;
         }
 
+        StateHasChanged();
+    }
+
+    private async Task TrustAndReconnectAsync(bool permanent)
+    {
+        try
+        {
+            if (permanent)
+            {
+                await Connection.TrustPendingCertificatePermanentlyAsync();
+            }
+            else
+            {
+                Connection.TrustPendingCertificateOnce();
+            }
+
+            await ConnectAsync(_lastEndpoint);
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Could not trust the certificate: {ex.Message}", isError: true);
+        }
+    }
+
+    private void DismissCertificate()
+    {
+        Connection.DismissPendingCertificate();
         StateHasChanged();
     }
 
