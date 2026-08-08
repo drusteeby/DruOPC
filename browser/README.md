@@ -4,6 +4,10 @@ UaScope is a Blazor Server application for browsing and inspecting any OPC UA se
 from a web browser. It was built alongside the OPC PLC simulator in this repository,
 but works against any reachable OPC UA endpoint.
 
+**New here?** The [getting started guide](../docs/getting-started.md) gets you to a
+live connection in 15 minutes; the [user manual](../docs/user-manual.md) covers
+every feature, troubleshooting and an OPC UA glossary.
+
 ## Run
 
 ```bash
