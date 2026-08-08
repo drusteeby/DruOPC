@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/browser/">
+    <Project Path="browser/UaScope.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/opc-plc.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/opc-plc-tests.csproj" />
+  </Folder>
+</Solution>

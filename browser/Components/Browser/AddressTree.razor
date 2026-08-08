@@ -1,0 +1,193 @@
+@using Opc.Ua
+@implements IDisposable
+@inject UaBrowserService Browser
+@inject UaWatchList WatchList
+@inject UaEventLog EventLog
+@inject BrowserState State
+
+<div class="panel tree-panel">
+    <div class="panel-header">
+        <span>Address Space</span>
+        <button class="mini" title="Reload root" @onclick="ReloadAsync">⟳</button>
+    </div>
+    <div class="goto-box">
+        <input placeholder="Go to node, e.g. ns=3;s=MyNode"
+               @bind="_gotoText" @bind:event="oninput"
+               @onkeydown="OnGotoKeyDown" />
+        <button class="mini" title="Go to node" @onclick="GoToNodeAsync">→</button>
+    </div>
+    <div class="panel-body tree-body">
+        @if (_roots.Count == 0)
+        {
+            <div class="hint">Connect to a server to browse its address space.</div>
+        }
+        else
+        {
+            <ul class="tree-root">
+                @foreach (var root in _roots)
+                {
+                    <TreeNodeView Node="root" Tree="this" SelectedNodeId="State.SelectedNode?.NodeId" />
+                }
+            </ul>
+        }
+    </div>
+</div>
+
+@code {
+    private readonly List<UaTreeNode> _roots = [];
+    private string _gotoText = "";
+
+    [Parameter] public EventCallback<UaTreeNode> OnCallMethod { get; set; }
+
+    protected override void OnInitialized()
+    {
+        State.SelectionChanged += OnStateChanged;
+    }
+
+    private void OnStateChanged()
+        => _ = InvokeAsync(StateHasChanged);
+
+    /// <summary>
+    /// Load the top of the address space (Objects, Types, Views).
+    /// </summary>
+    public async Task ReloadAsync()
+    {
+        _roots.Clear();
+        State.Select(null);
+
+        try
+        {
+            var children = await Browser.BrowseChildrenAsync(ObjectIds.RootFolder);
+            _roots.AddRange(children);
+
+            // Auto-expand the Objects folder, the interesting part of the address space.
+            var objects = _roots.FirstOrDefault(r => r.NodeId == ObjectIds.ObjectsFolder);
+            if (objects is not null)
+            {
+                await ToggleAsync(objects);
+            }
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Browse failed: {ex.Message}", isError: true);
+        }
+
+        StateHasChanged();
+    }
+
+    public void Clear()
+    {
+        _roots.Clear();
+        State.Select(null);
+        StateHasChanged();
+    }
+
+    public async Task ToggleAsync(UaTreeNode node)
+    {
+        if (node.IsExpanded)
+        {
+            node.IsExpanded = false;
+            StateHasChanged();
+            return;
+        }
+
+        node.IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var children = await Browser.BrowseChildrenAsync(node.NodeId);
+            node.Children.Clear();
+            foreach (var child in children)
+            {
+                child.Parent = node;
+                node.Children.Add(child);
+            }
+
+            node.HasChildren = children.Count > 0;
+            node.IsExpanded = true;
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Browse failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            node.IsLoading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    public Task SelectAsync(UaTreeNode node)
+    {
+        State.Select(node);
+        return Task.CompletedTask;
+    }
+
+    public async Task WatchAsync(UaTreeNode node)
+    {
+        try
+        {
+            await WatchList.AddAsync(node.NodeId, node.DisplayName);
+            State.Notify($"Watching {node.DisplayName}");
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Could not watch {node.DisplayName}: {ex.Message}", isError: true);
+        }
+    }
+
+    public Task CallAsync(UaTreeNode node)
+        => OnCallMethod.InvokeAsync(node);
+
+    public async Task SubscribeEventsAsync(UaTreeNode node)
+    {
+        try
+        {
+            await EventLog.StartAsync(node.NodeId, node.DisplayName);
+            State.Notify($"Listening for events from {node.DisplayName}");
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Could not subscribe to events: {ex.Message}", isError: true);
+        }
+    }
+
+    private async Task OnGotoKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await GoToNodeAsync();
+        }
+    }
+
+    private async Task GoToNodeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_gotoText))
+        {
+            return;
+        }
+
+        try
+        {
+            var node = await Browser.ResolveNodeAsync(_gotoText.Trim());
+            if (node is null)
+            {
+                State.Notify($"Node not found: {_gotoText}", isError: true);
+                return;
+            }
+
+            State.Select(node);
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Could not resolve node: {ex.Message}", isError: true);
+        }
+    }
+
+    public void Dispose()
+    {
+        State.SelectionChanged -= OnStateChanged;
+    }
+}

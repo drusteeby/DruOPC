@@ -19,7 +19,7 @@ public class DeterministicAlarmsTests2 : SubscriptionTestsBase
 
     public DeterministicAlarmsTests2() : base(
         [
-            "--dalm=DeterministicAlarmsTests/dalm002.json",
+            "OpcPlc:Simulation:DeterministicAlarmSimulationFile=DeterministicAlarmsTests/dalm002.json",
         ])
     {
     }

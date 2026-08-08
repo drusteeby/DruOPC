@@ -1,0 +1,101 @@
+@using Opc.Ua
+@implements IDisposable
+@inject UaBrowserService Browser
+@inject BrowserState State
+
+<div class="panel attributes-panel">
+    <div class="panel-header">
+        <span>Attributes</span>
+        <button class="mini" title="Refresh" @onclick="RefreshAsync" disabled="@(State.SelectedNode is null)">⟳</button>
+    </div>
+    <div class="panel-body">
+        @if (State.SelectedNode is null)
+        {
+            <div class="hint">Select a node to inspect its attributes.</div>
+        }
+        else if (_loading)
+        {
+            <div class="hint">Loading @State.SelectedNode.DisplayName …</div>
+        }
+        else
+        {
+            <table class="grid">
+                <thead>
+                    <tr><th>Attribute</th><th>Value</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _rows)
+                    {
+                        <tr class="@(row.IsBad ? "bad" : "")">
+                            <td class="attr-name">@row.Name</td>
+                            <td class="attr-value">
+                                <div class="value-text">@row.Value</div>
+                                @if (!string.IsNullOrEmpty(row.Detail))
+                                {
+                                    <div class="value-detail">@row.Detail</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    private List<UaAttributeRow> _rows = [];
+    private bool _loading;
+    private NodeId? _loadedFor;
+
+    protected override void OnInitialized()
+    {
+        State.SelectionChanged += OnSelectionChanged;
+    }
+
+    private void OnSelectionChanged()
+        => _ = InvokeAsync(async () =>
+        {
+            if (State.SelectedNode?.NodeId != _loadedFor)
+            {
+                await RefreshAsync();
+            }
+        });
+
+    private async Task RefreshAsync()
+    {
+        var node = State.SelectedNode;
+        if (node is null)
+        {
+            _rows = [];
+            _loadedFor = null;
+            StateHasChanged();
+            return;
+        }
+
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            _rows = await Browser.ReadAttributesAsync(node.NodeId);
+            _loadedFor = node.NodeId;
+        }
+        catch (Exception ex)
+        {
+            _rows = [];
+            State.Notify($"Reading attributes failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        State.SelectionChanged -= OnSelectionChanged;
+    }
+}

@@ -1,6 +1,11 @@
 namespace OpcPlc.Tests;
 
 using FluentAssertions;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NUnit.Framework;
@@ -8,7 +13,6 @@ using Opc.Ua;
 using Opc.Ua.Client;
 using Opc.Ua.Configuration;
 using OpcPlc;
-using OpcPlc.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -22,7 +26,8 @@ using System.Threading.Tasks;
 using System.Timers;
 
 /// <summary>
-/// A test fixture that starts a static singleton instance of the OPC PLC simulator.
+/// A test fixture that starts an OPC PLC simulator host with
+/// in-memory configuration overrides and mocked time services.
 /// </summary>
 public class PlcSimulatorFixture
 {
@@ -32,9 +37,11 @@ public class PlcSimulatorFixture
     /// </summary>
     private const int Port = 50001;
 
-    private readonly string[] _args;
+    private readonly string[] _configOverrides;
 
-    private readonly OpcPlcServer _opcPlcServer;
+    private WebApplication _app;
+
+    private OpcPlcServer _opcPlcServer;
 
     /// <summary>
     /// The writer in which output is immediately displayed in the NUnit console.
@@ -58,10 +65,6 @@ public class PlcSimulatorFixture
     private readonly ConcurrentBag<(OpcPlc.ITimer timer, FastTimerElapsedEventHandler handler)> _fastTimers
         = new();
 
-    private Task _serverTask;
-
-    private readonly CancellationTokenSource _serverCancellationTokenSource = new();
-
     private ApplicationConfiguration _config;
 
     private ConfiguredEndpoint _serverEndpoint;
@@ -69,24 +72,21 @@ public class PlcSimulatorFixture
     /// <summary>
     /// Initializes a new instance of the <see cref="PlcSimulatorFixture"/> class.
     /// </summary>
-    /// <param name="args">Command-line arguments to be passed to the simulator.</param>
-    public PlcSimulatorFixture(string[] args)
+    /// <param name="configOverrides">
+    /// Configuration overrides in the form "Section:Key=Value",
+    /// e.g. "OpcPlc:Simulation:AddAlarmSimulation=true".
+    /// </param>
+    public PlcSimulatorFixture(string[] configOverrides)
     {
-        _args = args ?? Array.Empty<string>();
-        
+        _configOverrides = configOverrides ?? Array.Empty<string>();
     }
 
     /// <summary>
-    /// Configure and run the simulator in a background thread, run once for the entire assembly.
+    /// Configure and run the simulator host, run once for the test fixture.
     /// The simulator is instrumented with mock time services.
     /// </summary>
     public async Task StartAsync()
     {
-        Reset();
-        _opcPlcServer = new OpcPlcServer()
-        _opcPlcServer.LoggerFactory = LoggingProvider.CreateDefaultLoggerFactory(LogLevel.Information);
-        _opcPlcServer.Logger = new TestLogger<PlcSimulatorFixture>(TestContext.Progress, new SyslogFormatter(new SyslogFormatterOptions()));
-
         _log = TestContext.Progress;
 
         var mock = new Mock<TimeService>();
@@ -114,31 +114,53 @@ public class PlcSimulatorFixture
                 return timer;
             });
 
-        _opcPlcServer.TimeService = mock.Object;
-
         mock.Setup(f => f.Now())
             .Returns(() => _now);
 
         mock.Setup(f => f.UtcNow())
             .Returns(() => _now);
 
-        // The simulator program command line.
-        // Passed args override the following defaults.
-        _serverTask = Task.Run(async () => await _opcPlcServer.StartAsync(
-            _args.Concat(
-                new[]
-                {
-                    "--autoaccept",
-                    $"--portnum={Port}",
-                    "--fn=25",
-                    "--fr=1",
-                    "--ft=uint",
-                }).ToArray(),
-            _serverCancellationTokenSource.Token)
-            .ConfigureAwait(false));
+        // Default settings for tests; per-test overrides win.
+        var settings = new Dictionary<string, string> {
+            ["OpcPlc:OpcUa:AutoAcceptCerts"] = "true",
+            ["OpcPlc:OpcUa:ServerPort"] = Port.ToString(),
+            ["OpcPlc:FastNodes:NodeCount"] = "25",
+            ["OpcPlc:FastNodes:NodeRate"] = "1",
+            ["OpcPlc:FastNodes:NodeType"] = "uint",
+            ["OpcPlc:OtlpEndpointUri"] = "",
+            ["OpcPlc:TagWriter:Enabled"] = "false",
+            ["OpcPlc:ShowPublisherConfigJsonIp"] = "false",
+            ["OpcPlc:ShowPublisherConfigJsonPh"] = "false",
+            ["OpcPlc:NodesFile"] = "",
+        };
+
+        foreach (var overridePair in _configOverrides)
+        {
+            int separatorIndex = overridePair.IndexOf('=');
+            separatorIndex.Should().BeGreaterThan(0, "configuration overrides must have the form Key=Value, but got {0}", overridePair);
+            settings[overridePair[..separatorIndex]] = overridePair[(separatorIndex + 1)..];
+        }
+
+        _app = Program.CreateApplication(Array.Empty<string>(), builder => {
+            builder.Configuration.AddInMemoryCollection(settings);
+
+            // Do not fight over the fixed web server port; any free port will do.
+            builder.WebHost.UseUrls("http://127.0.0.1:0");
+
+            builder.Logging.ClearProviders();
+            builder.Logging.SetMinimumLevel(LogLevel.Information);
+            builder.Logging.AddProvider(new TestLoggerProvider(TestContext.Progress));
+
+            // Replace the time service with the mocked one.
+            builder.Services.Replace(ServiceDescriptor.Singleton(mock.Object));
+        });
+
+        await _app.StartAsync().ConfigureAwait(false);
+
+        _opcPlcServer = _app.Services.GetRequiredService<OpcPlcServer>();
 
         string endpointUrl = await WaitForServerUpAsync().ConfigureAwait(false);
-        await _log.WriteAsync($"Found server at: {endpointUrl}").ConfigureAwait(false);
+        await _log.WriteLineAsync($"Found server at: {endpointUrl}").ConfigureAwait(false);
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
@@ -147,18 +169,18 @@ public class PlcSimulatorFixture
             // Use the Loopback IP address as a workaround.
             // In contrast, on Windows Azure DevOps builds, this results in issues.
             endpointUrl = $"opc.tcp://{IPAddress.Loopback}:{Port}";
-            await _log.WriteAsync($"Connecting to server URL: {endpointUrl}").ConfigureAwait(false);
+            await _log.WriteLineAsync($"Connecting to server URL: {endpointUrl}").ConfigureAwait(false);
         }
 
         _config = await GetConfigurationAsync().ConfigureAwait(false);
         _serverEndpoint = await GetServerEndpointAsync(endpointUrl).ConfigureAwait(false);
     }
 
-    public Task StopAsync()
+    public async Task StopAsync()
     {
         // shutdown simulator
-        _serverCancellationTokenSource.Cancel();
-        return _serverTask;
+        await _app.StopAsync().ConfigureAwait(false);
+        await _app.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -220,17 +242,6 @@ public class PlcSimulatorFixture
 
         var matchedHandlers = matchedTimers.Union(matchedFastTimers).ToList();
         return matchedHandlers;
-    }
-
-    private void Reset()
-    {
-        _opcPlcServer.Ready = false;
-
-        if (_opcPlcServer.PlcSimulationInstance is not null)
-        {
-            _opcPlcServer.PlcSimulationInstance.AddAlarmSimulation = false;
-            _opcPlcServer.PlcSimulationInstance.DeterministicAlarmSimulationFile = null;
-        }
     }
 
     private static bool CloseTo(double a, double b) => Math.Abs(a - b) <= Math.Abs(a * .00001);
@@ -302,25 +313,18 @@ public class PlcSimulatorFixture
 
     private async Task<string> WaitForServerUpAsync()
     {
+        var readyTask = _opcPlcServer.WaitUntilReadyAsync();
+
         while (true)
         {
-            if (_serverTask.IsFaulted)
-            {
-                throw _serverTask.Exception!;
-            }
-
-            if (_serverTask.IsCompleted)
-            {
-                throw new Exception("The OPC PLC server failed to start.");
-            }
-
-            if (!_opcPlcServer.Ready)
+            var completed = await Task.WhenAny(readyTask, Task.Delay(1000)).ConfigureAwait(false);
+            if (completed != readyTask)
             {
                 await _log.WriteLineAsync("Waiting for server to start ...").ConfigureAwait(false);
-                await Task.Delay(1000).ConfigureAwait(false);
                 continue;
             }
 
+            await readyTask.ConfigureAwait(false);
             return _opcPlcServer.PlcServer.GetEndpoints()[0].EndpointUrl;
         }
     }

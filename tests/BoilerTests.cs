@@ -17,7 +17,7 @@ using static System.TimeSpan;
 public class BoilerTests : SimulatorTestsBase
 {
     private ComplexTypeSystem _complexTypeSystem;
-    public BoilerTests() : base(["--ctb"])
+    public BoilerTests() : base([])
     {
     }
 

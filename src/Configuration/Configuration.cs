@@ -137,6 +137,11 @@ public class OpcPlcConfiguration
     public Boiler2Configuration Boiler2 { get; set; } = new Boiler2Configuration();
 
     /// <summary>
+    /// Tag writer service configuration.
+    /// </summary>
+    public TagWriterConfiguration TagWriter { get; set; } = new TagWriterConfiguration();
+
+    /// <summary>
     /// File-based node configuration.
     /// </summary>
     public string NodesFile { get; set; }
@@ -152,6 +157,7 @@ public class SimulationConfiguration
     public uint EventInstanceRate { get; set; } = 1000;
     public bool AddAlarmSimulation { get; set; }
     public bool AddSimpleEventsSimulation { get; set; }
+    public bool AddReferenceTestSimulation { get; set; } = true;
     public string DeterministicAlarmSimulationFile { get; set; }
 }
 
@@ -179,8 +185,11 @@ public class SlowNodesConfiguration
 public class FastNodesConfiguration
 {
     public uint NodeCount { get; set; } = 1;
+
+    /// <summary>
+    /// Rate in seconds at which fast nodes change values.
+    /// </summary>
     public uint NodeRate { get; set; } = 1;
-    public uint VeryFastRate { get; set; } = 1000;
     public string NodeType { get; set; } = "UInt";
     public string NodeMinValue { get; set; }
     public string NodeMaxValue { get; set; }
@@ -199,6 +208,38 @@ public class VeryFastByteStringNodesConfiguration
 public class GuidNodesConfiguration
 {
     public uint NodeCount { get; set; } = 1;
+}
+
+/// <summary>
+/// Configuration of the tag writer background service that drives
+/// the station-data demo nodes defined in the nodes file.
+/// </summary>
+public class TagWriterConfiguration
+{
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Namespace index of the target nodes.
+    /// </summary>
+    public ushort NamespaceIndex { get; set; } = 3;
+
+    /// <summary>
+    /// Delay in ms between the individual steps of the write sequence.
+    /// </summary>
+    public int StepDelayMs { get; set; } = 10_000;
+
+    /// <summary>
+    /// Delay in ms between write sequence cycles.
+    /// </summary>
+    public int WriteIntervalMs { get; set; } = 1_000;
+
+    public string ReadCompleteNodeId { get; set; } = "St10_Data.status.ReadComplete";
+
+    public string WriteCompleteNodeId { get; set; } = "St10_Data.status.WriteComplete";
+
+    public string UnitIdNodeId { get; set; } = "St10_Data.Header.UnitId.Data";
+
+    public string PalletNumberNodeId { get; set; } = "St10_Data.Header.PalletNumber";
 }
 
 public class Boiler2Configuration

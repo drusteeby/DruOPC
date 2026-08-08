@@ -19,13 +19,6 @@ public class LongStringPluginNodes(TimeService timeService, ILogger logger) : Pl
     private SimulatedVariableNode<byte[]> _longStringIdNode200;
     private readonly Random _random = new();
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
-    {
-        // lsn|longstringnodes
-        // Add nodes with string values of 10/50/100/200 kB.
-        // Enabled by default.
-    }
-
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)
     {
         _plcNodeManager = plcNodeManager;

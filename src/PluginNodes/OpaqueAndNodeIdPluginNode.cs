@@ -16,13 +16,6 @@ public class OpaqueAndNodeIdPluginNode(TimeService timeService, ILogger logger) 
     private PlcNodeManager _plcNodeManager;
     private SimulatedVariableNode<uint> _node;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
-    {
-        // on|opaquenode
-        // Add node with an opaque identifier.
-        // Enabled by default.
-    }
-
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)
     {
         _plcNodeManager = plcNodeManager;

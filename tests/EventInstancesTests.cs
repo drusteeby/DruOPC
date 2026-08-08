@@ -17,7 +17,7 @@ public class EventInstancesTests : SubscriptionTestsBase
     private NodeId _eventType;
 
     // Set any cmd params needed for the plc server explicitly.
-    public EventInstancesTests() : base(["--ei=1", "--er=1000"])
+    public EventInstancesTests() : base(["OpcPlc:Simulation:EventInstanceCount=1", "OpcPlc:Simulation:EventInstanceRate=1000"])
     {
     }
 

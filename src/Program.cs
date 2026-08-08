@@ -6,14 +6,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpcPlc.Configuration;
 using OpcPlc.PluginNodes.Models;
-using Scrutor;
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
 
 public static class Program
 {
@@ -22,66 +18,35 @@ public static class Program
     /// </summary>
     public static void Main(string[] args)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        var app = CreateApplication(args);
 
-        // Configure content root for snap environment
-        ConfigureContentRoot(builder);
-
-        // Configure options from appsettings.json
-        builder.Services.Configure<OpcPlcConfiguration>(
-            builder.Configuration.GetSection(OpcPlcConfiguration.SectionName));
-
-        // Validate configuration
-        var config = builder.Configuration.GetSection(OpcPlcConfiguration.SectionName).Get<OpcPlcConfiguration>();
-        if (config == null)
-        {
-            Console.WriteLine("Error: Could not load configuration from appsettings.json");
-            Environment.Exit(1);
-            return;
-        }
-
-        // Show usage if requested
+        var config = app.Services.GetRequiredService<IOptions<OpcPlcConfiguration>>().Value;
         if (config.ShowHelp)
         {
-            Console.WriteLine("OPC PLC Server - Configuration is now managed via appsettings.json");
+            Console.WriteLine("OPC PLC Server - Configuration is managed via appsettings.json");
             Console.WriteLine("Please edit appsettings.json to configure the server");
-            Environment.Exit(0);
             return;
         }
 
-        // Configure web server URLs conditionally
+        app.Run();
+    }
+
+    /// <summary>
+    /// Create the fully configured web application hosting the OPC UA server.
+    /// Used by <see cref="Main"/> and by integration tests, which pass
+    /// configuration overrides and service replacements via <paramref name="configureBuilder"/>.
+    /// </summary>
+    public static WebApplication CreateApplication(string[] args, Action<WebApplicationBuilder> configureBuilder = null)
+    {
+        var builder = WebApplication.CreateBuilder(args);
+
+        ConfigureContentRoot(builder);
         ConfigureWebServer(builder);
 
-        // Add MVC services for controllers
-        builder.Services.AddControllers();
+        builder.Services.AddOpcPlcServices(builder.Configuration);
 
-        // Register dependencies
-        builder.Services.AddSingleton(args);
-        builder.Services.AddTransient<TimeService>();
-        builder.Services.AddHostedService<OpcPlcServer>();
-        builder.Services.AddHostedService<OpcTagWriterService>(); // Register the OPC Tag Writer Service
-        builder.Services.AddSingleton<ILogger>(container => container.GetService<ILogger<object>>());
-        builder.Services.AddSingleton<IpAddressProvider>();
-        builder.Services.AddSingleton<PlcSimulation>();
-        
-        // Register a factory to get PlcServer from OpcPlcServer
-        builder.Services.AddSingleton<Func<PlcServer>>(sp =>
-        {
-            return () =>
-            {
-                var opcPlcServer = sp.GetServices<IHostedService>()
-                    .OfType<OpcPlcServer>()
-                    .FirstOrDefault();
-                return opcPlcServer?.PlcServer;
-            };
-        });
-
-        // Register plugin nodes as services
-        builder.Services.Scan(scan => scan
-            .FromAssemblyOf<IPluginNodes>()
-            .AddClasses(classes => classes.AssignableTo<IPluginNodes>())
-            .AsImplementedInterfaces()
-            .WithSingletonLifetime());
+        // Allow callers (e.g. tests) to override configuration and services.
+        configureBuilder?.Invoke(builder);
 
         var app = builder.Build();
 
@@ -90,11 +55,43 @@ public static class Program
             app.UseDeveloperExceptionPage();
         }
 
-        // Use routing and map controllers
         app.UseRouting();
         app.MapControllers();
 
-        app.Run();
+        return app;
+    }
+
+    /// <summary>
+    /// Register all OPC PLC services on the given service collection.
+    /// </summary>
+    public static IServiceCollection AddOpcPlcServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<OpcPlcConfiguration>(configuration.GetSection(OpcPlcConfiguration.SectionName));
+
+        services.AddControllers();
+
+        services.AddTransient<TimeService>();
+        services.AddSingleton<IpAddressProvider>();
+        services.AddSingleton<PlcSimulation>();
+
+        // Non-generic ILogger for components that log under a shared category.
+        services.AddSingleton<ILogger>(sp => sp.GetRequiredService<ILoggerFactory>().CreateLogger("OpcPlc"));
+
+        // The OPC UA server host is exposed both as a singleton (so other
+        // components can await readiness and reach the running PlcServer)
+        // and as the hosted service that runs it.
+        services.AddSingleton<OpcPlcServer>();
+        services.AddHostedService(sp => sp.GetRequiredService<OpcPlcServer>());
+        services.AddHostedService<OpcTagWriterService>();
+
+        // Register plugin nodes.
+        services.Scan(scan => scan
+            .FromAssemblyOf<IPluginNodes>()
+            .AddClasses(classes => classes.AssignableTo<IPluginNodes>())
+            .AsImplementedInterfaces()
+            .WithSingletonLifetime());
+
+        return services;
     }
 
     private static void ConfigureContentRoot(WebApplicationBuilder builder)
@@ -109,19 +106,16 @@ public static class Program
 
     private static void ConfigureWebServer(WebApplicationBuilder builder)
     {
-        // Configure URLs after binding by using a lambda that reads from IOptions
         builder.WebHost.ConfigureKestrel((context, serverOptions) =>
         {
-            var config = context.Configuration.Get<OpcPlcConfiguration>();          
+            var config = context.Configuration
+                .GetSection(OpcPlcConfiguration.SectionName)
+                .Get<OpcPlcConfiguration>() ?? new OpcPlcConfiguration();
 
-            
             if (config.ShowPublisherConfigJsonIp || config.ShowPublisherConfigJsonPh)
             {
                 serverOptions.ListenAnyIP((int)config.WebServerPort);
-            }  
+            }
         });
     }
-
-    
 }
-

@@ -18,7 +18,7 @@ public class FastPluginNodes : PluginNodeBase, IPluginNodes
     private readonly FastNodesConfiguration _config;
 
     private uint NodeCount => _config.NodeCount;
-    private uint NodeRate => _config.VeryFastRate; // Use VeryFastRate for millisecond precision
+    private uint NodeRate => _config.NodeRate * 1000; // Convert seconds to ms
     private NodeType NodeType { get; set; }
     private string NodeMinValue => _config.NodeMinValue;
     private string NodeMaxValue => _config.NodeMaxValue;

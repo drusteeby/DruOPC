@@ -15,13 +15,6 @@ public class LongIdPluginNode(TimeService timeService, ILogger logger) : PluginN
     private PlcNodeManager _plcNodeManager;
     private SimulatedVariableNode<uint> _node;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
-    {
-        // lid|longid
-        // Add node with ID of 3950 chars.
-        // Enabled by default.
-    }
-
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)
     {
         _plcNodeManager = plcNodeManager;

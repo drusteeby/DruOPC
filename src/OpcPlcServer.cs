@@ -55,6 +55,14 @@ public class OpcPlcServer : BackgroundService
     /// </summary>
     public bool Ready { get; private set; }
 
+    private readonly TaskCompletionSource _readyTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Completes when the OPC UA server is up and ready to accept connections.
+    /// </summary>
+    public Task WaitUntilReadyAsync(CancellationToken cancellationToken = default)
+        => _readyTcs.Task.WaitAsync(cancellationToken);
+
     public OpcPlcServer(
         IOptions<OpcPlcConfiguration> options,
         PlcSimulation plcSimulation,
@@ -111,7 +119,7 @@ public class OpcPlcServer : BackgroundService
             "OPC UA SDK informational version: {Version}",
             Utils.GetAssemblySoftwareVersion());
 
-        if (_config.OtlpEndpointUri is not null)
+        if (!string.IsNullOrWhiteSpace(_config.OtlpEndpointUri))
         {
             OtelHelper.ConfigureOpenTelemetry(_config.ProgramName, _config.OtlpEndpointUri, _config.OtlpExportProtocol, _config.OtlpExportInterval);
         }
@@ -187,6 +195,7 @@ public class OpcPlcServer : BackgroundService
         }
 
         Ready = true;
+        _readyTcs.TrySetResult();
         _logger.LogInformation("PLC simulation started, press Ctrl+C to exit ...");
 
         // Wait for cancellation.

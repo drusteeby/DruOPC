@@ -1,0 +1,166 @@
+@using Opc.Ua
+@inject UaBrowserService Browser
+@inject BrowserState State
+
+@if (_visible)
+{
+    <div class="modal-backdrop" @onclick="Close">
+        <div class="modal" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <span>Call method: @_methodName</span>
+                <button class="mini" @onclick="Close">✖</button>
+            </div>
+            <div class="modal-body">
+                @if (_loading)
+                {
+                    <div class="hint">Resolving method arguments …</div>
+                }
+                else
+                {
+                    @if (_inputs.Count > 0)
+                    {
+                        <h4>Input arguments</h4>
+                        @foreach (var arg in _inputs)
+                        {
+                            <div class="form-row">
+                                <label title="@arg.Description">
+                                    @arg.Name
+                                    <span class="dim">(@arg.DataTypeName@(arg.ValueRank != ValueRanks.Scalar ? "[]" : ""))</span>
+                                </label>
+                                <input @bind="arg.Value" placeholder="@(arg.ValueRank != ValueRanks.Scalar ? "comma-separated values" : "")" />
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="hint">This method takes no input arguments.</div>
+                    }
+
+                    @if (_called && _outputs.Count > 0)
+                    {
+                        <h4>Output arguments</h4>
+                        @foreach (var arg in _outputs)
+                        {
+                            <div class="form-row">
+                                <label>@arg.Name <span class="dim">(@arg.DataTypeName)</span></label>
+                                <div class="mono output-value">@arg.Value</div>
+                            </div>
+                        }
+                    }
+
+                    @if (!string.IsNullOrEmpty(_result))
+                    {
+                        <div class="call-result @(_resultBad ? "bad" : "good")">@_result</div>
+                    }
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="primary" @onclick="CallAsync" disabled="@(_loading || _calling)">
+                    @(_calling ? "Calling …" : "Call")
+                </button>
+                <button @onclick="Close">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _visible;
+    private bool _loading;
+    private bool _calling;
+    private bool _called;
+    private string _methodName = "";
+    private string _result = "";
+    private bool _resultBad;
+    private NodeId? _methodId;
+    private NodeId? _objectId;
+    private List<UaMethodArgument> _inputs = [];
+    private List<UaMethodArgument> _outputs = [];
+
+    /// <summary>
+    /// Open the dialog for the given method node.
+    /// </summary>
+    public async Task OpenAsync(UaTreeNode methodNode)
+    {
+        _visible = true;
+        _loading = true;
+        _called = false;
+        _calling = false;
+        _result = "";
+        _methodName = methodNode.DisplayName;
+        _methodId = methodNode.NodeId;
+        _inputs = [];
+        _outputs = [];
+        StateHasChanged();
+
+        try
+        {
+            _objectId = methodNode.Parent?.NodeId
+                ?? await Browser.FindMethodParentAsync(methodNode.NodeId);
+
+            if (_objectId is null)
+            {
+                _result = "Could not determine the parent object of this method.";
+                _resultBad = true;
+            }
+            else
+            {
+                (_inputs, _outputs) = await Browser.GetMethodArgumentsAsync(methodNode.NodeId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _result = $"Could not resolve method: {ex.Message}";
+            _resultBad = true;
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task CallAsync()
+    {
+        if (_methodId is null || _objectId is null)
+        {
+            return;
+        }
+
+        _calling = true;
+        _result = "";
+        StateHasChanged();
+
+        try
+        {
+            var outputs = await Browser.CallMethodAsync(_objectId, _methodId, _inputs);
+
+            for (int i = 0; i < _outputs.Count && i < outputs.Count; i++)
+            {
+                _outputs[i].Value = UaFormat.FormatValue(outputs[i]);
+            }
+
+            _called = true;
+            _result = "Call succeeded.";
+            _resultBad = false;
+        }
+        catch (Exception ex)
+        {
+            _result = $"Call failed: {ex.Message}";
+            _resultBad = true;
+        }
+        finally
+        {
+            _calling = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private void Close()
+    {
+        _visible = false;
+        StateHasChanged();
+    }
+}

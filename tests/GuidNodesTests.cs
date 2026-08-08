@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 public class GuidNodesTests : SubscriptionTestsBase
 {
     // Set any cmd params needed for the plc server explicitly
-    public GuidNodesTests() : base(["--gn=2"])
+    public GuidNodesTests() : base(["OpcPlc:GuidNodes:NodeCount=2"])
     {
     }
 

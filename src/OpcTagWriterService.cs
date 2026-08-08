@@ -10,38 +10,26 @@ using System.Threading;
 using System.Threading.Tasks;
 
 /// <summary>
-/// Background service that writes values to OPC UA tags.
+/// Background service that writes values to OPC UA tags,
+/// simulating the station-data handshake of the demo nodes file.
 /// </summary>
 public class OpcTagWriterService : BackgroundService
 {
     private readonly ILogger<OpcTagWriterService> _logger;
     private readonly TimeService _timeService;
-    private readonly OpcPlcConfiguration _config;
-    private readonly Func<PlcServer> _plcServerFactory;
-    private readonly IHostApplicationLifetime _lifetime;
-
-    // Configuration for the write sequence
-    private readonly int _writeIntervalMs;
-    private readonly string _targetNodeId;
-    private readonly ushort _namespaceIndex;
+    private readonly TagWriterConfiguration _config;
+    private readonly OpcPlcServer _opcPlcServer;
 
     public OpcTagWriterService(
         IOptions<OpcPlcConfiguration> options,
         ILogger<OpcTagWriterService> logger,
         TimeService timeService,
-        Func<PlcServer> plcServerFactory,
-        IHostApplicationLifetime lifetime)
+        OpcPlcServer opcPlcServer)
     {
-        _config = options.Value;
+        _config = options.Value.TagWriter;
         _logger = logger;
         _timeService = timeService;
-        _plcServerFactory = plcServerFactory;
-        _lifetime = lifetime;
-
-        // Initialize configuration - these can be moved to appsettings.json
-        _writeIntervalMs = 1000; // Default 1 second between writes
-        _targetNodeId = "TagWriter"; // Default node ID to write to
-        _namespaceIndex = 2; // Default namespace index
+        _opcPlcServer = opcPlcServer;
     }
 
     /// <summary>
@@ -49,39 +37,26 @@ public class OpcTagWriterService : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("OPC Tag Writer Service starting...");
-
-        // Wait for the PLC server to be initialized
-        PlcServer plcServer = null;
-        while ((plcServer = _plcServerFactory()) == null && !stoppingToken.IsCancellationRequested)
+        if (!_config.Enabled)
         {
-            _logger.LogDebug("Waiting for PLC server initialization...");
-            await Task.Delay(1000, stoppingToken).ConfigureAwait(false);
-        }
-
-        if (stoppingToken.IsCancellationRequested)
-        {
+            _logger.LogDebug("OPC Tag Writer Service is disabled via configuration");
             return;
         }
 
-        // Wait for PlcNodeManager to be initialized
-        while (plcServer.PlcNodeManager == null && !stoppingToken.IsCancellationRequested)
-        {
-            _logger.LogDebug("Waiting for PLC node manager initialization...");
-            await Task.Delay(1000, stoppingToken).ConfigureAwait(false);
-        }
+        _logger.LogInformation("OPC Tag Writer Service starting ...");
 
-        if (stoppingToken.IsCancellationRequested)
-        {
-            return;
-        }
+        // Wait for the OPC UA server to be up and its node manager initialized.
+        await _opcPlcServer.WaitUntilReadyAsync(stoppingToken).ConfigureAwait(false);
 
-        _logger.LogInformation("OPC Tag Writer Service started. Target Node: {NodeId}, Namespace: {Namespace}, Interval: {Interval}ms",
-            _targetNodeId, _namespaceIndex, _writeIntervalMs);
+        _logger.LogInformation(
+            "OPC Tag Writer Service started. Namespace: {Namespace}, step delay: {StepDelay} ms, write interval: {Interval} ms",
+            _config.NamespaceIndex,
+            _config.StepDelayMs,
+            _config.WriteIntervalMs);
 
         try
         {
-            await RunWriteSequenceAsync(plcServer, stoppingToken).ConfigureAwait(false);
+            await RunWriteSequenceAsync(_opcPlcServer.PlcServer, stoppingToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -100,67 +75,53 @@ public class OpcTagWriterService : BackgroundService
     {
         int sequenceCounter = 1;
 
-        var nodeId = new NodeId("St10_Data.status.ReadComplete", 3);
-        await WriteValueAsync(plcServer, nodeId, false, stoppingToken).ConfigureAwait(false);
-        nodeId = new NodeId("St10_Data.status.WriteComplete", 3);
-        await WriteValueAsync(plcServer, nodeId, false, stoppingToken).ConfigureAwait(false);
-        await Task.Delay(10000, stoppingToken).ConfigureAwait(false);
+        WriteValue(plcServer, ReadCompleteNodeId(), false);
+        WriteValue(plcServer, WriteCompleteNodeId(), false);
+        await Task.Delay(_config.StepDelayMs, stoppingToken).ConfigureAwait(false);
 
         _logger.LogInformation("Beginning write sequence loop");
 
         while (!stoppingToken.IsCancellationRequested)
         {
-
             try
             {
-                nodeId = new NodeId("St10_Data.status.ReadComplete", 3);
-                await WriteValueAsync(plcServer, nodeId, true, stoppingToken).ConfigureAwait(false);
-                await Task.Delay(10000, stoppingToken).ConfigureAwait(false);
+                WriteValue(plcServer, ReadCompleteNodeId(), true);
+                await Task.Delay(_config.StepDelayMs, stoppingToken).ConfigureAwait(false);
 
-                nodeId = new NodeId("St10_Data.status.WriteComplete", 3);
-                await WriteValueAsync(plcServer, nodeId, true, stoppingToken).ConfigureAwait(false);
-                await Task.Delay(10000, stoppingToken).ConfigureAwait(false);
+                WriteValue(plcServer, WriteCompleteNodeId(), true);
+                await Task.Delay(_config.StepDelayMs, stoppingToken).ConfigureAwait(false);
 
                 if (sequenceCounter % 5 != 0)
                 {
-                    nodeId = new NodeId("St10_Data.Header.UnitId.Data", 3);
-                    await WriteValueAsync(plcServer, nodeId, sequenceCounter.ToString(), stoppingToken).ConfigureAwait(false);
-                    await Task.Delay(10000, stoppingToken).ConfigureAwait(false);
+                    WriteValue(plcServer, new NodeId(_config.UnitIdNodeId, _config.NamespaceIndex), sequenceCounter.ToString());
+                    await Task.Delay(_config.StepDelayMs, stoppingToken).ConfigureAwait(false);
                 }
+
                 _logger.LogInformation(sequenceCounter % 5 != 0
                                         ? "Writing UnitId this cycle"
                                         : "Skipping UnitId write this cycle");
 
                 if (sequenceCounter % 6 != 0)
                 {
-                    nodeId = new NodeId("St10_Data.Header.PalletNumber", 3);
-                    await WriteValueAsync(plcServer, nodeId, sequenceCounter, stoppingToken).ConfigureAwait(false);
-                    await Task.Delay(10000, stoppingToken).ConfigureAwait(false);
+                    WriteValue(plcServer, new NodeId(_config.PalletNumberNodeId, _config.NamespaceIndex), sequenceCounter);
+                    await Task.Delay(_config.StepDelayMs, stoppingToken).ConfigureAwait(false);
                 }
 
                 _logger.LogInformation(sequenceCounter % 6 != 0
                                         ? "Writing PalletNumber this cycle"
                                         : "Skipping PalletNumber write this cycle");
 
-
                 if (sequenceCounter % 8 != 0)
                 {
-                    nodeId = new NodeId("St10_Data.status.WriteComplete", 3);
-                    await WriteValueAsync(plcServer, nodeId, true, stoppingToken).ConfigureAwait(false);
-                    await Task.Delay(10000, stoppingToken).ConfigureAwait(false);
+                    WriteValue(plcServer, WriteCompleteNodeId(), true);
+                    await Task.Delay(_config.StepDelayMs, stoppingToken).ConfigureAwait(false);
                 }
-
-                _logger.LogInformation(sequenceCounter % 8 != 0
-                        ? "Writing PalletNumber this cycle"
-                        : "Skipping PalletNumber write this cycle");
 
                 if (sequenceCounter % 100 != 0)
                 {
-                    nodeId = new NodeId("St10_Data.status.ReadComplete", 3);
-                    await WriteValueAsync(plcServer, nodeId, false, stoppingToken).ConfigureAwait(false);
-                    nodeId = new NodeId("St10_Data.status.WriteComplete", 3);
-                    await WriteValueAsync(plcServer, nodeId, false, stoppingToken).ConfigureAwait(false);
-                    await Task.Delay(10000, stoppingToken).ConfigureAwait(false);
+                    WriteValue(plcServer, ReadCompleteNodeId(), false);
+                    WriteValue(plcServer, WriteCompleteNodeId(), false);
+                    await Task.Delay(_config.StepDelayMs, stoppingToken).ConfigureAwait(false);
                 }
 
                 _logger.LogInformation(sequenceCounter % 100 != 0
@@ -170,7 +131,7 @@ public class OpcTagWriterService : BackgroundService
                 sequenceCounter = sequenceCounter == int.MaxValue ? 0 : sequenceCounter + 1;
                 _logger.LogDebug("Write sequence step {Counter} completed", sequenceCounter);
 
-                await Task.Delay(_writeIntervalMs, stoppingToken).ConfigureAwait(false);
+                await Task.Delay(_config.WriteIntervalMs, stoppingToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -178,21 +139,21 @@ public class OpcTagWriterService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to write value to node {NodeId}", nodeId);
+                _logger.LogWarning(ex, "Failed to write value");
                 // Continue the sequence even if a write fails
-                await Task.Delay(_writeIntervalMs, stoppingToken).ConfigureAwait(false);
+                await Task.Delay(_config.WriteIntervalMs, stoppingToken).ConfigureAwait(false);
             }
         }
     }
 
+    private NodeId ReadCompleteNodeId() => new(_config.ReadCompleteNodeId, _config.NamespaceIndex);
+
+    private NodeId WriteCompleteNodeId() => new(_config.WriteCompleteNodeId, _config.NamespaceIndex);
+
     /// <summary>
     /// Write a value to the specified OPC UA node.
     /// </summary>
-    /// <param name="plcServer">The PLC server instance</param>
-    /// <param name="nodeId">The node ID to write to</param>
-    /// <param name="value">The value to write</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    private async Task WriteValueAsync(PlcServer plcServer, NodeId nodeId, object value, CancellationToken cancellationToken)
+    private void WriteValue(PlcServer plcServer, NodeId nodeId, object value)
     {
         if (plcServer?.PlcNodeManager == null)
         {
@@ -200,35 +161,23 @@ public class OpcTagWriterService : BackgroundService
             return;
         }
 
-        await Task.Run(() => {
-            try
-            {
-                // Find the node in the address space
-                var node = plcServer.PlcNodeManager.FindPredefinedNode(nodeId, typeof(BaseDataVariableState));
+        var node = plcServer.PlcNodeManager.FindPredefinedNode(nodeId, typeof(BaseDataVariableState));
 
-                if (node is BaseDataVariableState variable)
-                {
-                    // Update the value
-                    variable.Value = value;
-                    variable.Timestamp = _timeService.UtcNow();
-                    variable.StatusCode = StatusCodes.Good;
+        if (node is BaseDataVariableState variable)
+        {
+            variable.Value = value;
+            variable.Timestamp = _timeService.UtcNow();
+            variable.StatusCode = StatusCodes.Good;
 
-                    // Notify clients of the change
-                    variable.ClearChangeMasks(plcServer.PlcNodeManager.SystemContext, false);
+            // Notify clients of the change.
+            variable.ClearChangeMasks(plcServer.PlcNodeManager.SystemContext, false);
 
-                    _logger.LogDebug("Successfully wrote value {Value} to node {NodeId}", value, nodeId);
-                }
-                else
-                {
-                    _logger.LogWarning("Node {NodeId} not found or is not a variable", nodeId);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error writing to node {NodeId}", nodeId);
-                throw;
-            }
-        }, cancellationToken).ConfigureAwait(false);
+            _logger.LogDebug("Successfully wrote value {Value} to node {NodeId}", value, nodeId);
+        }
+        else
+        {
+            _logger.LogWarning("Node {NodeId} not found or is not a variable", nodeId);
+        }
     }
 
     /// <summary>
@@ -236,7 +185,7 @@ public class OpcTagWriterService : BackgroundService
     /// </summary>
     public override Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("OPC Tag Writer Service stopping...");
+        _logger.LogInformation("OPC Tag Writer Service stopping ...");
         return base.StopAsync(cancellationToken);
     }
 }

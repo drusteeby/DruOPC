@@ -16,7 +16,7 @@ using static System.TimeSpan;
 public class SimulatorNodesTests : SimulatorTestsBase
 {
     // Set any cmd params needed for the plc server explicitly.
-    public SimulatorNodesTests() : base(["--str=false"])
+    public SimulatorNodesTests() : base(["OpcPlc:SlowNodes:NodeRandomization=false"])
     {
     }
 

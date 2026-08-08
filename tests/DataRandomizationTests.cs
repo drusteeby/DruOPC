@@ -14,7 +14,7 @@ using static System.TimeSpan;
 public class DataRandomizationTests : SubscriptionTestsBase
 {
     // Set any cmd params needed for the plc server explicitly
-    public DataRandomizationTests() : base(["--str=true"])
+    public DataRandomizationTests() : base(["OpcPlc:SlowNodes:NodeRandomization=true"])
     {
     }
 

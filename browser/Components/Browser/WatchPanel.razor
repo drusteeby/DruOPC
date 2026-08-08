@@ -1,0 +1,176 @@
+@using Opc.Ua
+@implements IDisposable
+@inject UaWatchList WatchList
+@inject UaBrowserService Browser
+@inject BrowserState State
+
+<div class="panel watch-panel">
+    <div class="panel-header">
+        <span>Watch List <span class="count-badge">@WatchList.Items.Count</span></span>
+        <span class="header-controls">
+            <label title="Subscription publishing interval">
+                pub
+                <select value="@WatchList.PublishingIntervalMs" @onchange="OnPublishingIntervalChanged">
+                    <option value="100">100 ms</option>
+                    <option value="250">250 ms</option>
+                    <option value="500">500 ms</option>
+                    <option value="1000">1 s</option>
+                    <option value="2000">2 s</option>
+                    <option value="5000">5 s</option>
+                </select>
+            </label>
+            <label title="Monitored item sampling interval">
+                sample
+                <select value="@WatchList.SamplingIntervalMs" @onchange="OnSamplingIntervalChanged">
+                    <option value="0">fastest</option>
+                    <option value="100">100 ms</option>
+                    <option value="250">250 ms</option>
+                    <option value="500">500 ms</option>
+                    <option value="1000">1 s</option>
+                </select>
+            </label>
+            <button class="mini" title="Remove all" @onclick="() => WatchList.ClearAsync()" disabled="@(WatchList.Items.Count == 0)">🗑</button>
+        </span>
+    </div>
+    <div class="panel-body">
+        @if (WatchList.Items.Count == 0)
+        {
+            <div class="hint">Click 👁 on a variable in the tree to monitor its value live.</div>
+        }
+        else
+        {
+            <table class="grid watch-grid">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Node id</th>
+                        <th>Value</th>
+                        <th>Type</th>
+                        <th>Source time</th>
+                        <th>Server time</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in WatchList.Items)
+                    {
+                        <tr class="@(item.IsBad ? "bad" : "")">
+                            <td title="@item.NodeIdText">@item.DisplayName</td>
+                            <td class="mono dim">@item.NodeIdText</td>
+                            <td class="mono value-cell @(FlashClass(item))">
+                                @if (_editing == item)
+                                {
+                                    <input class="write-input" @bind="_editValue" @bind:event="oninput"
+                                           @onkeydown="e => OnWriteKeyDown(e, item)" autofocus />
+                                }
+                                else
+                                {
+                                    @item.Value
+                                }
+                            </td>
+                            <td>@item.DataType</td>
+                            <td class="mono dim">@item.SourceTimestamp</td>
+                            <td class="mono dim">@item.ServerTimestamp</td>
+                            <td class="@(item.IsBad ? "status-bad" : "status-good")">@item.StatusCode</td>
+                            <td class="row-actions">
+                                @if (item.IsWritable)
+                                {
+                                    @if (_editing == item)
+                                    {
+                                        <button class="mini" title="Write value (Enter)" @onclick="() => CommitWriteAsync(item)">✔</button>
+                                        <button class="mini" title="Cancel (Esc)" @onclick="CancelWrite">✖</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="mini" title="Write a new value" @onclick="() => StartWrite(item)">✎</button>
+                                    }
+                                }
+                                <button class="mini" title="Remove from watch list" @onclick="() => WatchList.RemoveAsync(item)">–</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    private UaWatchItem? _editing;
+    private string _editValue = "";
+
+    protected override void OnInitialized()
+    {
+        WatchList.Changed += OnChanged;
+    }
+
+    private void OnChanged()
+        => _ = InvokeAsync(StateHasChanged);
+
+    private static string FlashClass(UaWatchItem item)
+        => (DateTime.UtcNow - item.LastUpdateUtc).TotalMilliseconds < 700 ? "flash" : "";
+
+    private void StartWrite(UaWatchItem item)
+    {
+        _editing = item;
+        _editValue = item.Value;
+    }
+
+    private void CancelWrite()
+    {
+        _editing = null;
+        _editValue = "";
+    }
+
+    private async Task OnWriteKeyDown(KeyboardEventArgs e, UaWatchItem item)
+    {
+        if (e.Key == "Enter")
+        {
+            await CommitWriteAsync(item);
+        }
+        else if (e.Key == "Escape")
+        {
+            CancelWrite();
+        }
+    }
+
+    private async Task CommitWriteAsync(UaWatchItem item)
+    {
+        if (item.DataTypeId is null)
+        {
+            State.Notify("Unknown data type; cannot write.", isError: true);
+            return;
+        }
+
+        try
+        {
+            var status = await Browser.WriteValueAsync(item.NodeId, item.DataTypeId, item.ValueRank, _editValue);
+            if (StatusCode.IsBad(status))
+            {
+                State.Notify($"Write rejected: {UaFormat.FormatStatusCode(status)}", isError: true);
+            }
+            else
+            {
+                State.Notify($"Wrote {_editValue} to {item.DisplayName}");
+                _editing = null;
+                _editValue = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Write failed: {ex.Message}", isError: true);
+        }
+    }
+
+    public void Dispose()
+    {
+        WatchList.Changed -= OnChanged;
+    }
+
+    private Task OnPublishingIntervalChanged(ChangeEventArgs e)
+        => WatchList.SetIntervalsAsync(int.Parse((string)e.Value!), WatchList.SamplingIntervalMs);
+
+    private Task OnSamplingIntervalChanged(ChangeEventArgs e)
+        => WatchList.SetIntervalsAsync(WatchList.PublishingIntervalMs, int.Parse((string)e.Value!));
+}

@@ -14,7 +14,7 @@ public class EventMonitoringTests : SubscriptionTestsBase
 {
     private NodeId _eventType;
 
-    public EventMonitoringTests() : base(["--simpleevents"])
+    public EventMonitoringTests() : base(["OpcPlc:Simulation:AddSimpleEventsSimulation=true"])
     {
     }
 

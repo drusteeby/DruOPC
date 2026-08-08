@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>opcplc</AssemblyName>
     <OutputType>Exe</OutputType>
     <IsPackable>true</IsPackable>
@@ -22,11 +22,13 @@
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <TieredPGO>true</TieredPGO>
     <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
+    <!-- CA1873 fires on long-standing logging call sites; not worth the churn to fix. -->
+    <NoWarn>$(NoWarn);CA1873</NoWarn>
   </PropertyGroup>
   <PropertyGroup>
     <ContainerRepository>iotedge/opc-plc</ContainerRepository>
     <ContainerUser>root</ContainerUser>
-    <ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:9.0-azurelinux3.0-distroless</ContainerBaseImage>
+    <ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:10.0-azurelinux3.0-distroless</ContainerBaseImage>
   </PropertyGroup>
   <ItemGroup>
     <ContainerEnvironmentVariable Include="APP_UID" Value="" />
@@ -37,16 +39,15 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="Mono.Options" Version="6.12.0.148" />
-    <PackageReference Include="OpenTelemetry" Version="1.13.1" />
-    <PackageReference Include="OpenTelemetry.Api" Version="1.13.1" />
-    <PackageReference Include="OpenTelemetry.Api.ProviderBuilderExtensions" Version="1.13.1" />
-    <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.13.1" />
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.13.1" />
-    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.13.1" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.13.0" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.13.0" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.13.0" />
+    <PackageReference Include="OpenTelemetry" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Api" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Api.ProviderBuilderExtensions" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.17.0" />
 	<PackageReference Include="Scrutor" Version="6.1.0" />
     <PackageReference Include="Serilog.Extensions.Logging.File" Version="3.0.0" />
     <PackageReference Update="Microsoft.SourceLink.GitHub" Version="8.0.0" />
@@ -100,11 +101,6 @@
     <None Update="SimpleEvent\SimpleEvents.PredefinedNodes.uanodes">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="AlarmCondition\UnderlyingSystem\" />
-    <Folder Include="Configuration\OptionGroups\" />
   </ItemGroup>
 
   <ItemGroup>

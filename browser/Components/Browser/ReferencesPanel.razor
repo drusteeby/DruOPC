@@ -1,0 +1,122 @@
+@using Opc.Ua
+@implements IDisposable
+@inject UaBrowserService Browser
+@inject BrowserState State
+
+<div class="panel references-panel">
+    <div class="panel-header">
+        <span>References</span>
+        <button class="mini" title="Refresh" @onclick="RefreshAsync" disabled="@(State.SelectedNode is null)">⟳</button>
+    </div>
+    <div class="panel-body">
+        @if (State.SelectedNode is null)
+        {
+            <div class="hint">Select a node to list its references.</div>
+        }
+        else if (_loading)
+        {
+            <div class="hint">Loading …</div>
+        }
+        else
+        {
+            <table class="grid">
+                <thead>
+                    <tr><th></th><th>Reference</th><th>Target</th><th>Class</th><th>Type definition</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _rows)
+                    {
+                        <tr>
+                            <td title="@(row.IsForward ? "Forward" : "Inverse")">@(row.IsForward ? "→" : "←")</td>
+                            <td>@row.ReferenceType</td>
+                            <td>
+                                @if (row.TargetNodeId is not null)
+                                {
+                                    <a class="node-link" title="@row.TargetNodeId.ToString()"
+                                       @onclick="() => NavigateAsync(row)">@row.Target</a>
+                                }
+                                else
+                                {
+                                    @row.Target
+                                }
+                            </td>
+                            <td>@row.TargetNodeClass</td>
+                            <td>@row.TypeDefinition</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    private List<UaReferenceRow> _rows = [];
+    private bool _loading;
+    private NodeId? _loadedFor;
+
+    protected override void OnInitialized()
+    {
+        State.SelectionChanged += OnSelectionChanged;
+    }
+
+    private void OnSelectionChanged()
+        => _ = InvokeAsync(async () =>
+        {
+            if (State.SelectedNode?.NodeId != _loadedFor)
+            {
+                await RefreshAsync();
+            }
+        });
+
+    private async Task RefreshAsync()
+    {
+        var node = State.SelectedNode;
+        if (node is null)
+        {
+            _rows = [];
+            _loadedFor = null;
+            StateHasChanged();
+            return;
+        }
+
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            _rows = await Browser.GetReferencesAsync(node.NodeId);
+            _loadedFor = node.NodeId;
+        }
+        catch (Exception ex)
+        {
+            _rows = [];
+            State.Notify($"Reading references failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task NavigateAsync(UaReferenceRow row)
+    {
+        if (row.TargetNodeId is null)
+        {
+            return;
+        }
+
+        var node = await Browser.ResolveNodeAsync(row.TargetNodeId.ToString());
+        if (node is not null)
+        {
+            State.Select(node);
+        }
+    }
+
+    public void Dispose()
+    {
+        State.SelectionChanged -= OnSelectionChanged;
+    }
+}

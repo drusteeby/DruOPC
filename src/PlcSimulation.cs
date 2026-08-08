@@ -21,7 +21,7 @@ public class PlcSimulation
 
     public bool AddAlarmSimulation { get; set; }
     public bool AddSimpleEventsSimulation { get; set; }
-    public bool AddReferenceTestSimulation { get; set; } = true;
+    public bool AddReferenceTestSimulation { get; set; }
     public string DeterministicAlarmSimulationFile { get; set; }
 
     public ImmutableList<IPluginNodes> PluginNodes { get; }
@@ -40,6 +40,7 @@ public class PlcSimulation
         EventInstanceRate = _config.EventInstanceRate;
         AddAlarmSimulation = _config.AddAlarmSimulation;
         AddSimpleEventsSimulation = _config.AddSimpleEventsSimulation;
+        AddReferenceTestSimulation = _config.AddReferenceTestSimulation;
         DeterministicAlarmSimulationFile = _config.DeterministicAlarmSimulationFile;
     }
 

@@ -15,7 +15,7 @@ public class VariableTests : SimulatorTestsBase
     private NodeId _scalarStaticNode;
 
     // Set any cmd params needed for the plc server explicitly.
-    public VariableTests() : base(["--ref"])
+    public VariableTests() : base(["OpcPlc:Simulation:AddReferenceTestSimulation=true"])
     {
     }
 

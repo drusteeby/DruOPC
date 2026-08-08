@@ -14,11 +14,6 @@ public class WorkingSetPluginNode(TimeService timeService, ILogger logger) : Plu
     private PlcNodeManager _plcNodeManager;
     private SimulatedVariableNode<uint> _node;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
-    {
-        // Enabled by default.
-    }
-
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)
     {
         _plcNodeManager = plcNodeManager;

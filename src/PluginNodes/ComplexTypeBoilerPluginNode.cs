@@ -20,13 +20,6 @@ public class ComplexTypeBoilerPluginNode(TimeService timeService, ILogger logger
     private Boiler1State _node;
     private ITimer _nodeGenerator;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
-    {
-        // ctb|complextypeboiler
-        // Add complex type (boiler) to address space.
-        // Enabled by default.
-    }
-
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)
     {
         _plcNodeManager = plcNodeManager;

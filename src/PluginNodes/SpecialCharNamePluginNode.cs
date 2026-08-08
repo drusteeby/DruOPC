@@ -15,13 +15,6 @@ public class SpecialCharNamePluginNode(TimeService timeService, ILogger logger) 
     private PlcNodeManager _plcNodeManager;
     private SimulatedVariableNode<uint> _node;
 
-    public void AddOptions(Mono.Options.OptionSet optionSet)
-    {
-        // scn|specialcharname
-        // Add node with special characters in name.
-        // Enabled by default.
-    }
-
     public void AddToAddressSpace(FolderState telemetryFolder, FolderState methodsFolder, PlcNodeManager plcNodeManager)
     {
         _plcNodeManager = plcNodeManager;

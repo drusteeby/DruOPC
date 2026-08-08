@@ -1,0 +1,71 @@
+@using Opc.Ua
+
+<li>
+    <div class="tree-row @(IsSelected ? "selected" : "")" @onclick="() => Tree.SelectAsync(Node)">
+        <span class="tree-expander @(Node.HasChildren ? "" : "leaf")"
+              @onclick="() => Tree.ToggleAsync(Node)" @onclick:stopPropagation="true">
+            @if (Node.IsLoading)
+            {
+                <span class="spinner"></span>
+            }
+            else if (Node.HasChildren)
+            {
+                @(Node.IsExpanded ? "▾" : "▸")
+            }
+        </span>
+        <span class="tree-icon @IconClass" title="@Node.NodeClass.ToString()">@IconGlyph</span>
+        <span class="tree-label" title="@Node.NodeId.ToString()">@Node.DisplayName</span>
+        <span class="tree-actions">
+            @if (Node.NodeClass == NodeClass.Variable)
+            {
+                <button class="mini" title="Add to watch list" @onclick="() => Tree.WatchAsync(Node)" @onclick:stopPropagation="true">👁</button>
+            }
+            @if (Node.NodeClass == NodeClass.Method)
+            {
+                <button class="mini" title="Call method" @onclick="() => Tree.CallAsync(Node)" @onclick:stopPropagation="true">▶</button>
+            }
+            @if (Node.NodeClass == NodeClass.Object)
+            {
+                <button class="mini" title="Subscribe to events from this node" @onclick="() => Tree.SubscribeEventsAsync(Node)" @onclick:stopPropagation="true">⚡</button>
+            }
+        </span>
+    </div>
+    @if (Node.IsExpanded && Node.Children.Count > 0)
+    {
+        <ul class="tree-children">
+            @foreach (var child in Node.Children)
+            {
+                <TreeNodeView Node="child" Tree="Tree" SelectedNodeId="SelectedNodeId" />
+            }
+        </ul>
+    }
+    else if (Node.IsExpanded && !Node.IsLoading && Node.Children.Count == 0)
+    {
+        <ul class="tree-children"><li class="tree-empty">(no children)</li></ul>
+    }
+</li>
+
+@code {
+    [Parameter, EditorRequired] public required UaTreeNode Node { get; set; }
+
+    [Parameter, EditorRequired] public required AddressTree Tree { get; set; }
+
+    [Parameter] public NodeId? SelectedNodeId { get; set; }
+
+    private bool IsSelected => SelectedNodeId is not null && SelectedNodeId == Node.NodeId;
+
+    private string IconGlyph => Node.NodeClass switch
+    {
+        NodeClass.Object => "📁",
+        NodeClass.Variable => "📊",
+        NodeClass.Method => "ƒ",
+        NodeClass.View => "🗂",
+        NodeClass.ObjectType => "🧩",
+        NodeClass.VariableType => "🧬",
+        NodeClass.DataType => "🔢",
+        NodeClass.ReferenceType => "🔗",
+        _ => "•",
+    };
+
+    private string IconClass => Node.NodeClass.ToString().ToLowerInvariant();
+}

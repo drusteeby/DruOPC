@@ -1,0 +1,321 @@
+@page "/"
+@rendermode InteractiveServer
+@using Opc.Ua
+@implements IDisposable
+@inject UaConnection Connection
+@inject UaBrowserService Browser
+@inject UaWatchList WatchList
+@inject UaEventLog EventLog
+@inject BrowserState State
+
+<PageTitle>UaScope – OPC UA Browser</PageTitle>
+
+<div class="app-shell">
+    <header class="topbar">
+        <span class="brand">Ua<span class="brand-accent">Scope</span></span>
+
+        <input class="endpoint-input" placeholder="opc.tcp://localhost:50000"
+               @bind="_endpointUrl" @bind:event="oninput"
+               @onkeydown="OnEndpointKeyDown"
+               disabled="@(Connection.State is UaConnectionState.Connected or UaConnectionState.Connecting)" />
+
+        @if (Connection.State is UaConnectionState.Disconnected)
+        {
+            <button class="primary" @onclick="() => ConnectAsync(null)" disabled="@_busy">Connect</button>
+            <button @onclick="DiscoverAsync" disabled="@_busy">Endpoints…</button>
+        }
+        else
+        {
+            <button @onclick="DisconnectAsync" disabled="@_busy">Disconnect</button>
+        }
+
+        <details class="identity-menu">
+            <summary title="Authentication settings">@(_useUserName ? $"👤 {_userName}" : "👤 Anonymous")</summary>
+            <div class="identity-popup">
+                <label class="check">
+                    <input type="checkbox" @bind="_useUserName" /> Use username / password
+                </label>
+                <input placeholder="user name" @bind="_userName" disabled="@(!_useUserName)" />
+                <input placeholder="password" type="password" @bind="_password" disabled="@(!_useUserName)" />
+                <label class="check">
+                    <input type="checkbox" @bind="_useSecurity" /> Prefer secure endpoint
+                </label>
+                <label class="check">
+                    <input type="checkbox" checked="@Connection.AutoAcceptServerCertificate"
+                           @onchange="e => Connection.AutoAcceptServerCertificate = (bool)e.Value!" />
+                    Auto-accept server certificate
+                </label>
+            </div>
+        </details>
+
+        <span class="conn-status @Connection.State.ToString().ToLowerInvariant()">
+            ●
+            @(Connection.State switch
+            {
+                UaConnectionState.Connected => "Connected",
+                UaConnectionState.Connecting => "Connecting…",
+                UaConnectionState.Reconnecting => "Reconnecting…",
+                _ => "Disconnected",
+            })
+        </span>
+    </header>
+
+    <main class="workspace">
+        <AddressTree @ref="_tree" OnCallMethod="OpenMethodDialogAsync" />
+
+        <section class="center-panels">
+            <WatchPanel />
+            <EventsPanel />
+        </section>
+
+        <section class="right-panels">
+            <AttributesPanel />
+            <ReferencesPanel />
+        </section>
+    </main>
+
+    <footer class="statusbar">
+        @if (Connection.SessionInfo is { } info)
+        {
+            <span title="Endpoint">@info.EndpointUrl</span>
+            <span class="sep">|</span>
+            <span title="Security">@info.SecurityMode / @info.SecurityPolicy</span>
+            <span class="sep">|</span>
+            <span title="Identity">@info.Identity</span>
+            <span class="sep">|</span>
+            <button class="link" @onclick="() => _showNamespaces = true">@info.Namespaces.Length namespaces</button>
+            @if (!string.IsNullOrEmpty(info.ServerCertificateThumbprint))
+            {
+                <span class="sep">|</span>
+                <span title="@info.ServerCertificateSubject">cert @info.ServerCertificateThumbprint[..12]…</span>
+            }
+        }
+        else
+        {
+            <span class="dim">Not connected. @(Connection.LastError ?? "")</span>
+        }
+    </footer>
+</div>
+
+<MethodDialog @ref="_methodDialog" />
+
+@* Endpoint discovery dialog *@
+@if (_showEndpoints)
+{
+    <div class="modal-backdrop" @onclick="() => _showEndpoints = false">
+        <div class="modal wide" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <span>Endpoints at @_endpointUrl</span>
+                <button class="mini" @onclick="() => _showEndpoints = false">✖</button>
+            </div>
+            <div class="modal-body">
+                @if (_discovering)
+                {
+                    <div class="hint">Discovering endpoints …</div>
+                }
+                else if (_endpoints.Count == 0)
+                {
+                    <div class="hint">No endpoints found.</div>
+                }
+                else
+                {
+                    <table class="grid">
+                        <thead>
+                            <tr><th>Security policy</th><th>Mode</th><th>Level</th><th>Identity tokens</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var endpoint in _endpoints)
+                            {
+                                <tr>
+                                    <td>@endpoint.SecurityPolicyShort</td>
+                                    <td class="@(endpoint.IsSecure ? "status-good" : "status-warn")">@endpoint.SecurityMode</td>
+                                    <td>@endpoint.SecurityLevel</td>
+                                    <td>@string.Join(", ", endpoint.UserTokenTypes)</td>
+                                    <td><button class="mini primary" @onclick="() => ConnectAsync(endpoint.Description)">Connect</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@* Namespace table dialog *@
+@if (_showNamespaces && Connection.SessionInfo is { } sessionInfo)
+{
+    <div class="modal-backdrop" @onclick="() => _showNamespaces = false">
+        <div class="modal" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <span>Namespace table</span>
+                <button class="mini" @onclick="() => _showNamespaces = false">✖</button>
+            </div>
+            <div class="modal-body">
+                <table class="grid">
+                    <thead><tr><th>Index</th><th>URI</th></tr></thead>
+                    <tbody>
+                        @for (int i = 0; i < sessionInfo.Namespaces.Length; i++)
+                        {
+                            <tr><td>@i</td><td class="mono">@sessionInfo.Namespaces[i]</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@* Toasts *@
+<div class="toasts">
+    @foreach (var toast in _toasts)
+    {
+        <div class="toast @(toast.IsError ? "error" : "")">@toast.Message</div>
+    }
+</div>
+
+@code {
+    private sealed record Toast(string Message, bool IsError);
+
+    private AddressTree? _tree;
+    private MethodDialog? _methodDialog;
+
+    private string _endpointUrl = "opc.tcp://localhost:50000";
+    private bool _useSecurity;
+    private bool _useUserName;
+    private string _userName = "";
+    private string _password = "";
+    private bool _busy;
+
+    private bool _showEndpoints;
+    private bool _discovering;
+    private List<UaEndpointInfo> _endpoints = [];
+
+    private bool _showNamespaces;
+
+    private readonly List<Toast> _toasts = [];
+
+    protected override void OnInitialized()
+    {
+        Connection.StateChanged += OnConnectionStateChanged;
+        State.Notified += OnNotified;
+    }
+
+    private void OnConnectionStateChanged()
+        => _ = InvokeAsync(StateHasChanged);
+
+    private void OnNotified(string message, bool isError)
+        => _ = InvokeAsync(async () =>
+        {
+            var toast = new Toast(message, isError);
+            _toasts.Add(toast);
+            StateHasChanged();
+            await Task.Delay(isError ? 6000 : 3000);
+            _toasts.Remove(toast);
+            StateHasChanged();
+        });
+
+    private async Task OnEndpointKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await ConnectAsync(null);
+        }
+    }
+
+    private IUserIdentity BuildIdentity()
+        => _useUserName
+            ? new UserIdentity(_userName, _password)
+            : new UserIdentity(new AnonymousIdentityToken());
+
+    private async Task ConnectAsync(EndpointDescription? endpoint)
+    {
+        _busy = true;
+        _showEndpoints = false;
+        StateHasChanged();
+
+        try
+        {
+            await Connection.ConnectAsync(_endpointUrl.Trim(), _useSecurity, BuildIdentity(), endpoint);
+            Browser.Reset();
+            State.Notify($"Connected to {Connection.SessionInfo?.EndpointUrl}");
+
+            if (_tree is not null)
+            {
+                await _tree.ReloadAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Connect failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task DisconnectAsync()
+    {
+        _busy = true;
+        StateHasChanged();
+
+        try
+        {
+            await WatchList.ClearAsync();
+            await EventLog.StopAsync();
+            await Connection.DisconnectAsync();
+            _tree?.Clear();
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Disconnect failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task DiscoverAsync()
+    {
+        _showEndpoints = true;
+        _discovering = true;
+        _endpoints = [];
+        StateHasChanged();
+
+        try
+        {
+            _endpoints = await Connection.DiscoverEndpointsAsync(_endpointUrl.Trim());
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Discovery failed: {ex.Message}", isError: true);
+            _showEndpoints = false;
+        }
+        finally
+        {
+            _discovering = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task OpenMethodDialogAsync(UaTreeNode methodNode)
+    {
+        if (_methodDialog is not null)
+        {
+            await _methodDialog.OpenAsync(methodNode);
+        }
+    }
+
+    public void Dispose()
+    {
+        Connection.StateChanged -= OnConnectionStateChanged;
+        State.Notified -= OnNotified;
+    }
+}

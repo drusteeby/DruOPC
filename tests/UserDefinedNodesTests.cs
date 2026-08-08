@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 public class UserDefinedNodesTests : SubscriptionTestsBase
 {
     // Set any cmd params needed for the plc server explicitly
-    public UserDefinedNodesTests() : base(["--nodesfile=nodesfile.json"])
+    public UserDefinedNodesTests() : base(["OpcPlc:NodesFile=nodesfile.json"])
     {
     }
 

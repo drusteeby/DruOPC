@@ -11,7 +11,7 @@ public class AlarmTests : SubscriptionTestsBase
 {
     private NodeId _eventType;
 
-    public AlarmTests() : base(["--alm"])
+    public AlarmTests() : base(["OpcPlc:Simulation:AddAlarmSimulation=true"])
     {
     }
 

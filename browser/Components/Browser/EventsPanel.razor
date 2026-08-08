@@ -1,0 +1,65 @@
+@implements IDisposable
+@inject UaEventLog EventLog
+
+<div class="panel events-panel">
+    <div class="panel-header">
+        <span>
+            Events
+            @if (EventLog.IsActive)
+            {
+                <span class="live-badge" title="Subscribed to @EventLog.NotifierName">● @EventLog.NotifierName</span>
+            }
+            <span class="count-badge">@EventLog.Events.Count</span>
+        </span>
+        <span class="header-controls">
+            <button class="mini" title="Clear received events" @onclick="() => EventLog.Clear()">🗑</button>
+            <button class="mini" title="Stop event subscription" @onclick="() => EventLog.StopAsync()" disabled="@(!EventLog.IsActive)">⏹</button>
+        </span>
+    </div>
+    <div class="panel-body">
+        @if (!EventLog.IsActive && EventLog.Events.Count == 0)
+        {
+            <div class="hint">Click ⚡ on an object in the tree (e.g. Server) to receive its events.</div>
+        }
+        else
+        {
+            <table class="grid">
+                <thead>
+                    <tr><th>Time</th><th>Severity</th><th>Source</th><th>Type</th><th>Message</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var e in EventLog.Events)
+                    {
+                        <tr>
+                            <td class="mono dim">@e.Time</td>
+                            <td class="sev sev-@SeverityBucket(e.Severity)">@e.Severity</td>
+                            <td>@e.SourceName</td>
+                            <td>@e.EventType</td>
+                            <td>@e.Message</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        EventLog.Changed += OnChanged;
+    }
+
+    private void OnChanged()
+        => _ = InvokeAsync(StateHasChanged);
+
+    private static string SeverityBucket(string severity)
+        => int.TryParse(severity, out int value)
+            ? value >= 700 ? "high" : value >= 400 ? "mid" : "low"
+            : "low";
+
+    public void Dispose()
+    {
+        EventLog.Changed -= OnChanged;
+    }
+}
