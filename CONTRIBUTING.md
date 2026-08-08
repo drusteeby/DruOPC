@@ -43,6 +43,23 @@ Open a [GitHub issue](https://github.com/drusteeby/DruOPC/issues) with:
    suite; **a green check is required before merge** (branch protection).
 5. Keep PRs focused — one topic per PR merges much faster than a grab-bag.
 
+### Claude Code integration
+
+Two GitHub Actions bring [Claude Code](https://claude.com/claude-code) into
+the workflow:
+
+- **Automatic PR review** (`claude-code-review.yml`): every opened or updated
+  PR gets a code review from Claude. Treat its comments like any reviewer's —
+  address what's right, push back on what isn't. It doesn't block merges;
+  only the `build-and-test` check is required.
+- **@claude mentions** (`claude.yml`): mention `@claude` in an issue or PR
+  comment to ask a question or request a change — e.g.
+  `@claude why does this test fail?` or `@claude implement the fix described
+  above`. Claude answers in a comment or pushes commits to a branch.
+
+Both run on the maintainer's Claude subscription, so use mentions
+purposefully.
+
 ### Code style
 
 - Match the surrounding code — the repo favors explicit, readable C# with
