@@ -64,6 +64,17 @@ Dependabot watches NuGet and GitHub Actions weekly. One deliberate pin:
 **FluentAssertions stays at 7.x** — version 8 moved to a paid commercial
 license. Don't bump it.
 
+## Releasing (maintainers)
+
+The version lives in `version.json` and must match the release tag; the
+release workflow fails if they differ. To cut a release:
+
+1. Bump `"version"` in `version.json` (e.g. to `1.0.3`) and commit.
+2. Tag that commit `v1.0.3` and push the tag.
+
+The tag push builds and publishes everything: GitHub release binaries,
+GHCR containers, the NuGet package, and the snap — all versioned `1.0.3`.
+
 ## Licensing
 
 DruOPC is MIT-licensed (see [LICENSE.md](LICENSE.md)) and builds on

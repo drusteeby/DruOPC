@@ -29,6 +29,18 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # version.json holds the full x.y.z, so tags, binaries, containers,
+      # and packages all carry the same version. Bump it before tagging.
+      - name: Verify tag matches version.json
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VERSION="$(jq -r .version version.json)"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "::error::Tag v$TAG does not match version.json ($VERSION)." \
+              "Bump version.json, commit, then tag that commit v$VERSION."
+            exit 1
+          fi
+
       - name: Test
         run: |
           dotnet build druopc.slnx -c Release
