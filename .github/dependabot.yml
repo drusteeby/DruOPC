@@ -1,11 +1,16 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-
 version: 2
 updates:
-  - package-ecosystem: "nuget"
-    directory: "/" # Location of package manifests
+  - package-ecosystem: nuget
+    directory: /
     schedule:
-      interval: "daily"
+      interval: weekly
+    ignore:
+      # FluentAssertions 8+ moved to a paid commercial license;
+      # the project intentionally pins the last freely-licensed version.
+      - dependency-name: FluentAssertions
+        versions: [">=8.0.0"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

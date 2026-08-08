@@ -15,6 +15,9 @@ They work great together (the browser connects to the simulator out of the box)
 and separately (point the browser at a real PLC; point any OPC UA client at the
 simulator).
 
+Want to help? See **[CONTRIBUTING.md](CONTRIBUTING.md)** — bug reports, docs
+fixes and pull requests are all welcome.
+
 > This is a fork of
 > [Azure-Samples/iot-edge-opc-plc](https://github.com/Azure-Samples/iot-edge-opc-plc)
 > with breaking changes: the command-line interface was replaced by
