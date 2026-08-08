@@ -33,7 +33,7 @@ parts:
       - ca-certificates
       - git
     override-build: |
-      craftctl set-version "$(git -C "$CRAFT_PART_SRC" describe --tags --always | sed 's/^v//')"
+      craftctl set version="$(git -C "$CRAFT_PART_SRC" describe --tags --always | sed 's/^v//')"
 
       curl -sSL https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh
       bash dotnet-install.sh --channel 10.0 --install-dir "$CRAFT_PART_BUILD/.dotnet"
