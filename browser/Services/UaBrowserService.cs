@@ -366,8 +366,10 @@ public sealed class UaBrowserService
     /// <summary>
     /// Search the address space (breadth-first from the Objects folder) for
     /// nodes whose display or browse name contains the given text.
+    /// The returned flag is true when the visit cap was reached, so the UI
+    /// can tell the user the search was not exhaustive.
     /// </summary>
-    public async Task<List<UaTreeNode>> SearchAsync(
+    public async Task<(List<UaTreeNode> Results, bool Truncated)> SearchAsync(
         string text,
         int maxResults = 50,
         int maxNodesVisited = 5000,
@@ -377,84 +379,132 @@ public sealed class UaBrowserService
         var visited = new HashSet<NodeId> { ObjectIds.ObjectsFolder };
         var frontier = new List<NodeId> { ObjectIds.ObjectsFolder };
 
-        while (frontier.Count > 0 && visited.Count < maxNodesVisited && results.Count < maxResults)
+        // Continuation points we stopped following; released in the finally
+        // block so cancelled or capped searches don't exhaust the session's
+        // continuation point budget.
+        var leftoverContinuationPoints = new ByteStringCollection();
+        bool done = false;
+
+        try
         {
-            ct.ThrowIfCancellationRequested();
-
-            // Browse up to 50 nodes per request round.
-            var batch = frontier.Take(50).ToList();
-            frontier.RemoveRange(0, batch.Count);
-
-            var nodesToBrowse = new BrowseDescriptionCollection(batch.Select(id => new BrowseDescription
+            while (!done && frontier.Count > 0 && visited.Count < maxNodesVisited)
             {
-                NodeId = id,
-                BrowseDirection = BrowseDirection.Forward,
-                ReferenceTypeId = ReferenceTypeIds.HierarchicalReferences,
-                IncludeSubtypes = true,
-                NodeClassMask = 0,
-                ResultMask = (uint)BrowseResultMask.All,
-            }));
+                ct.ThrowIfCancellationRequested();
 
-            var response = await Session.BrowseAsync(null, null, 0, nodesToBrowse, ct).ConfigureAwait(false);
+                // Browse up to 50 nodes per request round.
+                var batch = frontier.Take(50).ToList();
+                frontier.RemoveRange(0, batch.Count);
 
-            foreach (var result in response.Results)
-            {
-                if (StatusCode.IsBad(result.StatusCode))
+                var nodesToBrowse = new BrowseDescriptionCollection(batch.Select(id => new BrowseDescription
                 {
-                    continue;
-                }
+                    NodeId = id,
+                    BrowseDirection = BrowseDirection.Forward,
+                    ReferenceTypeId = ReferenceTypeIds.HierarchicalReferences,
+                    IncludeSubtypes = true,
+                    NodeClassMask = 0,
+                    ResultMask = (uint)BrowseResultMask.All,
+                }));
 
-                var references = new List<ReferenceDescription>(result.References);
+                var response = await Session.BrowseAsync(null, null, 0, nodesToBrowse, ct).ConfigureAwait(false);
 
-                // Follow continuation points so large folders are fully searched.
-                var continuationPoint = result.ContinuationPoint;
-                while (continuationPoint is { Length: > 0 })
+                foreach (var result in response.Results)
                 {
-                    var next = await Session.BrowseNextAsync(null, false, new ByteStringCollection { continuationPoint }, ct).ConfigureAwait(false);
-                    if (StatusCode.IsBad(next.Results[0].StatusCode))
-                    {
-                        break;
-                    }
-
-                    references.AddRange(next.Results[0].References);
-                    continuationPoint = next.Results[0].ContinuationPoint;
-                }
-
-                foreach (var reference in references)
-                {
-                    var childId = ExpandedNodeId.ToNodeId(reference.NodeId, Session.NamespaceUris);
-                    if (childId is null || !visited.Add(childId))
+                    if (StatusCode.IsBad(result.StatusCode))
                     {
                         continue;
                     }
 
-                    string displayName = reference.DisplayName?.Text ?? "";
-                    string browseName = reference.BrowseName?.Name ?? "";
+                    var references = new List<ReferenceDescription>(result.References);
 
-                    if (displayName.Contains(text, StringComparison.OrdinalIgnoreCase)
-                        || browseName.Contains(text, StringComparison.OrdinalIgnoreCase)
-                        || (childId.IdType == IdType.String && childId.Identifier.ToString()!.Contains(text, StringComparison.OrdinalIgnoreCase)))
+                    // Follow continuation points, but stop once caps are hit.
+                    var continuationPoint = result.ContinuationPoint;
+                    try
                     {
-                        results.Add(new UaTreeNode
+                        while (!done
+                            && continuationPoint is { Length: > 0 }
+                            && visited.Count + references.Count < maxNodesVisited)
                         {
-                            NodeId = childId,
-                            DisplayName = displayName,
-                            BrowseName = FormatQualifiedName(reference.BrowseName),
-                            NodeClass = reference.NodeClass,
-                        });
+                            var next = await Session.BrowseNextAsync(null, false, new ByteStringCollection { continuationPoint }, ct).ConfigureAwait(false);
+                            if (StatusCode.IsBad(next.Results[0].StatusCode))
+                            {
+                                break;
+                            }
 
-                        if (results.Count >= maxResults)
+                            references.AddRange(next.Results[0].References);
+                            continuationPoint = next.Results[0].ContinuationPoint;
+                        }
+                    }
+                    finally
+                    {
+                        if (continuationPoint is { Length: > 0 })
                         {
-                            break;
+                            leftoverContinuationPoints.Add(continuationPoint);
                         }
                     }
 
-                    frontier.Add(childId);
+                    if (done)
+                    {
+                        continue; // Only collecting leftover continuation points now.
+                    }
+
+                    foreach (var reference in references)
+                    {
+                        var childId = ExpandedNodeId.ToNodeId(reference.NodeId, Session.NamespaceUris);
+                        if (childId is null || !visited.Add(childId))
+                        {
+                            continue;
+                        }
+
+                        string displayName = reference.DisplayName?.Text ?? "";
+                        string browseName = reference.BrowseName?.Name ?? "";
+
+                        if (displayName.Contains(text, StringComparison.OrdinalIgnoreCase)
+                            || browseName.Contains(text, StringComparison.OrdinalIgnoreCase)
+                            || (childId.IdType == IdType.String && childId.Identifier.ToString()!.Contains(text, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            results.Add(new UaTreeNode
+                            {
+                                NodeId = childId,
+                                DisplayName = displayName,
+                                BrowseName = FormatQualifiedName(reference.BrowseName),
+                                NodeClass = reference.NodeClass,
+                            });
+
+                            if (results.Count >= maxResults)
+                            {
+                                done = true;
+                                break;
+                            }
+                        }
+
+                        if (visited.Count >= maxNodesVisited)
+                        {
+                            done = true;
+                            break;
+                        }
+
+                        frontier.Add(childId);
+                    }
+                }
+            }
+        }
+        finally
+        {
+            if (leftoverContinuationPoints.Count > 0)
+            {
+                try
+                {
+                    await Session.BrowseNextAsync(null, true, leftoverContinuationPoints, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    // Best effort only.
                 }
             }
         }
 
-        return results;
+        bool truncated = visited.Count >= maxNodesVisited || results.Count >= maxResults;
+        return (results, truncated);
     }
 
     /// <summary>

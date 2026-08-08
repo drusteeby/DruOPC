@@ -28,6 +28,12 @@ public sealed class UaConnection : IAsyncDisposable
     private readonly SemaphoreSlim _connectLock = new(1, 1);
     private readonly HashSet<string> _sessionTrustedThumbprints = [];
 
+    /// <summary>
+    /// Guards Session and _reconnectHandler against races between the SDK's
+    /// keep-alive/reconnect threads and user connect/disconnect operations.
+    /// </summary>
+    private readonly object _sessionLock = new();
+
     private ApplicationConfiguration? _configuration;
     private SessionReconnectHandler? _reconnectHandler;
     private UaPendingCertificate? _lastRejectedCertificate;
@@ -280,23 +286,31 @@ public sealed class UaConnection : IAsyncDisposable
 
     private async Task DisconnectCoreAsync()
     {
-        _reconnectHandler?.Dispose();
-        _reconnectHandler = null;
-
-        if (Session is not null)
+        SessionReconnectHandler? handler;
+        Session? session;
+        lock (_sessionLock)
         {
-            Session.KeepAlive -= OnKeepAlive;
+            handler = _reconnectHandler;
+            _reconnectHandler = null;
+            session = Session;
+            Session = null;
+        }
+
+        handler?.Dispose();
+
+        if (session is not null)
+        {
+            session.KeepAlive -= OnKeepAlive;
             try
             {
-                await Session.CloseAsync().ConfigureAwait(false);
+                await session.CloseAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "Error closing session");
             }
 
-            Session.Dispose();
-            Session = null;
+            session.Dispose();
         }
 
         TypeSystem = null;
@@ -333,57 +347,80 @@ public sealed class UaConnection : IAsyncDisposable
 
     private void OnKeepAlive(ISession session, KeepAliveEventArgs e)
     {
-        if (!ReferenceEquals(session, Session))
+        if (!ServiceResult.IsBad(e.Status))
         {
             return;
         }
 
-        if (ServiceResult.IsBad(e.Status))
+        bool startedReconnect = false;
+        lock (_sessionLock)
         {
-            if (_reconnectHandler is null)
+            if (!ReferenceEquals(session, Session) || Session is null || _reconnectHandler is not null)
             {
-                _logger.LogWarning("Connection lost ({Status}), reconnecting ...", e.Status);
-                SetState(UaConnectionState.Reconnecting, error: e.Status.ToString());
-
-                _reconnectHandler = new SessionReconnectHandler(reconnectAbort: true);
-                _reconnectHandler.BeginReconnect(Session, reconnectPeriod: 5_000, OnReconnectComplete);
+                return;
             }
+
+            _reconnectHandler = new SessionReconnectHandler(reconnectAbort: true);
+            _reconnectHandler.BeginReconnect(Session, reconnectPeriod: 5_000, OnReconnectComplete);
+            startedReconnect = true;
+        }
+
+        if (startedReconnect)
+        {
+            _logger.LogWarning("Connection lost ({Status}), reconnecting ...", e.Status);
+            SetState(UaConnectionState.Reconnecting, error: e.Status.ToString());
         }
     }
 
     private void OnReconnectComplete(object? sender, EventArgs e)
     {
-        if (!ReferenceEquals(sender, _reconnectHandler))
-        {
-            return;
-        }
-
-        var handler = _reconnectHandler;
-        _reconnectHandler = null;
-
         bool replaced = false;
-        if (handler?.Session is Session reconnected && !ReferenceEquals(reconnected, Session))
+        Session? oldSession = null;
+        SessionReconnectHandler? handler;
+        Session? newSession;
+
+        lock (_sessionLock)
         {
-            // The session was recreated (e.g. after a server restart);
-            // subscriptions were cloned onto the new session.
-            Session?.Dispose();
-            Session = reconnected;
-            Session.KeepAlive -= OnKeepAlive;
-            Session.KeepAlive += OnKeepAlive;
-            replaced = true;
+            if (!ReferenceEquals(sender, _reconnectHandler))
+            {
+                return;
+            }
+
+            handler = _reconnectHandler;
+
+            if (handler?.Session is Session reconnected && !ReferenceEquals(reconnected, Session))
+            {
+                // The session was recreated (e.g. after a server restart);
+                // subscriptions were cloned onto the new session. Swap the
+                // session BEFORE clearing the handler so a keep-alive from
+                // the old session cannot start a rogue reconnect in between.
+                oldSession = Session;
+                Session = reconnected;
+                Session.KeepAlive -= OnKeepAlive;
+                Session.KeepAlive += OnKeepAlive;
+                replaced = true;
+            }
+
+            _reconnectHandler = null;
+            newSession = Session;
         }
+
+        oldSession?.Dispose();
 
         // A null handler session means the keep-alive recovered on its own;
         // either way the connection is usable again.
         handler?.Dispose();
 
         _logger.LogInformation("Reconnected (session {Replaced})", replaced ? "recreated" : "kept");
-        SetState(UaConnectionState.Connected, error: null);
 
-        if (replaced && Session is not null)
+        if (replaced && newSession is not null)
         {
-            SessionReplaced?.Invoke(Session);
+            // Let subscription holders re-bind before the UI reacts to the
+            // state change.
+            SessionReplaced?.Invoke(newSession);
         }
+
+        SetState(UaConnectionState.Connected, error: null);
     }
 
     private void BuildSessionInfo(EndpointDescription endpoint, IUserIdentity identity)

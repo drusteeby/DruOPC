@@ -234,6 +234,7 @@
     private bool _showNamespaces;
     private string[] _recentServers = [];
     private string? _deepLinkNode;
+    private bool _deepLinkConnect;
 
     private readonly List<Toast> _toasts = [];
 
@@ -250,6 +251,7 @@
         }
 
         _deepLinkNode = query["node"];
+        _deepLinkConnect = query["endpoint"] is { Length: > 0 } || _deepLinkNode is { Length: > 0 };
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -270,8 +272,9 @@
         }
 
         // Auto-connect when opened through a deep link.
-        if (_deepLinkNode is not null || Navigation.Uri.Contains("endpoint="))
+        if (_deepLinkConnect)
         {
+            _deepLinkConnect = false;
             await ConnectAsync(null);
         }
     }

@@ -210,19 +210,28 @@ public sealed class UaWatchList : IAsyncDisposable
 
     private void OnSessionReplaced(Session newSession)
     {
-        // The SDK cloned our subscription (including monitored items, their
-        // Handle and Notification handlers) onto the new session.
-        var clone = newSession.Subscriptions
-            .FirstOrDefault(s => s.DisplayName == SubscriptionName);
+        // Serialize with in-flight add/remove/interval operations.
+        _lock.Wait();
+        try
+        {
+            // The SDK cloned our subscription (including monitored items, their
+            // Handle and Notification handlers) onto the new session.
+            var clone = newSession.Subscriptions
+                .FirstOrDefault(s => s.DisplayName == SubscriptionName);
 
-        if (clone is not null)
-        {
-            _subscription = clone;
-            _logger.LogInformation("Watch list re-bound to recreated session");
+            if (clone is not null)
+            {
+                _subscription = clone;
+                _logger.LogInformation("Watch list re-bound to recreated session");
+            }
+            else if (_items.Count > 0)
+            {
+                _logger.LogWarning("Watch list subscription missing after reconnect");
+            }
         }
-        else if (_items.Count > 0)
+        finally
         {
-            _logger.LogWarning("Watch list subscription missing after reconnect");
+            _lock.Release();
         }
     }
 

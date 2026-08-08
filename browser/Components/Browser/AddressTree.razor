@@ -21,7 +21,7 @@
     {
         <div class="search-results">
             <div class="search-results-header">
-                @(_searching ? "Searching …" : $"{_searchResults!.Count} match(es)")
+                @(_searching ? "Searching …" : $"{_searchResults!.Count} match(es){(_searchTruncated ? " – search stopped early, refine the term" : "")}")
                 <button class="mini" title="Close results" @onclick="CloseSearch">✖</button>
             </div>
             @if (_searchResults is not null)
@@ -62,6 +62,7 @@
     private readonly List<UaTreeNode> _roots = [];
     private string _searchText = "";
     private bool _searching;
+    private bool _searchTruncated;
     private List<UaTreeNode>? _searchResults;
     private CancellationTokenSource? _searchCts;
 
@@ -332,10 +333,11 @@
 
         try
         {
-            var results = await Browser.SearchAsync(text, maxResults: 50, maxNodesVisited: 5000, ct);
+            (var results, bool truncated) = await Browser.SearchAsync(text, maxResults: 50, maxNodesVisited: 5000, ct);
             if (!ct.IsCancellationRequested)
             {
                 _searchResults = results;
+                _searchTruncated = truncated;
             }
         }
         catch (OperationCanceledException)
@@ -362,6 +364,7 @@
         _searchCts?.Cancel();
         _searching = false;
         _searchResults = null;
+        _searchTruncated = false;
     }
 
     public void Dispose()

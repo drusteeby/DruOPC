@@ -2,15 +2,17 @@ namespace OpcPlc.Tests;
 
 using FluentAssertions;
 using NUnit.Framework;
+using Opc.Ua;
 using System.Threading.Tasks;
 
 /// <summary>
-/// Tests the nodes configured via nodesfile.json.
+/// Tests the nodes configured via nodesfile.json
+/// (station-data hierarchy: DemoLine-> Station10/Station20 -> S2_*/S3_* nodes).
 /// </summary>
 [TestFixture]
 public class UserDefinedNodesTests : SubscriptionTestsBase
 {
-    // Set any cmd params needed for the plc server explicitly
+    // Set any config overrides needed for the plc server explicitly
     public UserDefinedNodesTests() : base(["OpcPlc:NodesFile=nodesfile.json"])
     {
     }
@@ -18,50 +20,38 @@ public class UserDefinedNodesTests : SubscriptionTestsBase
     [Test]
     public async Task TestUserDefinedNodes()
     {
-        var myTelemetryNode = await FindNodeAsync(ObjectsFolder, Namespaces.OpcPlcApplications, "OpcPlc", "MyTelemetry").ConfigureAwait(false);
-        myTelemetryNode.Should().NotBeNull();
+        var aceNode = await FindNodeAsync(ObjectsFolder, OpcPlc.Namespaces.OpcPlcApplications, "OpcPlc", "DemoLine").ConfigureAwait(false);
+        aceNode.Should().NotBeNull();
 
-        var childNode = await FindNodeAsync(myTelemetryNode, Namespaces.OpcPlcApplications, "Child").ConfigureAwait(false);
-        childNode.Should().NotBeNull();
+        var op45Node = await FindNodeAsync(aceNode, OpcPlc.Namespaces.OpcPlcApplications, "Station10").ConfigureAwait(false);
+        op45Node.Should().NotBeNull();
 
-        (await FindNodeAsync(childNode, Namespaces.OpcPlcApplications, "9999").ConfigureAwait(false))
+        var op50Node = await FindNodeAsync(aceNode, OpcPlc.Namespaces.OpcPlcApplications, "Station20").ConfigureAwait(false);
+        op50Node.Should().NotBeNull();
+
+        (await FindNodeAsync(op45Node, OpcPlc.Namespaces.OpcPlcApplications, "St10_Data&.status&.ReadComplete").ConfigureAwait(false))
             .Should().NotBeNull();
 
-        (await FindNodeAsync(childNode, Namespaces.OpcPlcApplications, "Guid").ConfigureAwait(false))
+        (await FindNodeAsync(op45Node, OpcPlc.Namespaces.OpcPlcApplications, "St10_Data&.status&.WriteComplete").ConfigureAwait(false))
             .Should().NotBeNull();
 
-        (await FindNodeAsync(myTelemetryNode, Namespaces.OpcPlcApplications, "1023").ConfigureAwait(false))
+        (await FindNodeAsync(op45Node, OpcPlc.Namespaces.OpcPlcApplications, "St10_Data&.Header&.UnitId&.Data").ConfigureAwait(false))
             .Should().NotBeNull();
 
-        (await FindNodeAsync(myTelemetryNode, Namespaces.OpcPlcApplications, "aRMS").ConfigureAwait(false))
+        (await FindNodeAsync(op50Node, OpcPlc.Namespaces.OpcPlcApplications, "St20_Data&.status&.ReadComplete").ConfigureAwait(false))
             .Should().NotBeNull();
+    }
 
-        (await FindNodeAsync(myTelemetryNode, Namespaces.OpcPlcApplications, "1025").ConfigureAwait(false))
-            .Should().NotBeNull();
+    [Test]
+    public async Task TestUserDefinedNodesAreWritable()
+    {
+        var aceNode = await FindNodeAsync(ObjectsFolder, OpcPlc.Namespaces.OpcPlcApplications, "OpcPlc", "DemoLine").ConfigureAwait(false);
+        var op45Node = await FindNodeAsync(aceNode, OpcPlc.Namespaces.OpcPlcApplications, "Station10").ConfigureAwait(false);
+        var palletNumberNode = await FindNodeAsync(op45Node, OpcPlc.Namespaces.OpcPlcApplications, "St10_Data&.Header&.PalletNumber").ConfigureAwait(false);
 
-        (await FindNodeAsync(myTelemetryNode, Namespaces.OpcPlcApplications, "1026").ConfigureAwait(false))
-            .Should().NotBeNull();
+        StatusCode status = await WriteValueAsync(palletNumberNode, 1234).ConfigureAwait(false);
+        StatusCode.IsGood(status).Should().BeTrue();
 
-        (await FindNodeAsync(myTelemetryNode, Namespaces.OpcPlcApplications, "1027").ConfigureAwait(false))
-            .Should().NotBeNull();
-
-        (await FindNodeAsync(myTelemetryNode, Namespaces.OpcPlcApplications, "1029").ConfigureAwait(false))
-            .Should().NotBeNull();
-
-        (await FindNodeAsync(myTelemetryNode, Namespaces.OpcPlcApplications, "1030").ConfigureAwait(false))
-            .Should().NotBeNull();
-
-        (await FindNodeAsync(myTelemetryNode, Namespaces.OpcPlcApplications, "1031").ConfigureAwait(false))
-            .Should().NotBeNull();
-
-        (await FindNodeAsync(myTelemetryNode, Namespaces.OpcPlcApplications, "1032").ConfigureAwait(false))
-            .Should().NotBeNull();
-
-        (await FindNodeAsync(myTelemetryNode, Namespaces.OpcPlcApplications, "1033").ConfigureAwait(false))
-            .Should().NotBeNull();
-
-        var arrayNodeId = await FindNodeAsync(myTelemetryNode, Namespaces.OpcPlcApplications, "1048").ConfigureAwait(false);
-        arrayNodeId.Should().NotBeNull();
-        (await Session.ReadValueAsync(arrayNodeId).ConfigureAwait(false)).Value.Should().BeEquivalentTo(new int[] { 1, 2, 3, 4, 5 });
+        (await ReadValueAsync<int>(palletNumberNode).ConfigureAwait(false)).Should().Be(1234);
     }
 }

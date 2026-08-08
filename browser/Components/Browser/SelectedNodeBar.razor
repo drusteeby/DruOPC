@@ -44,6 +44,7 @@
 @code {
     private List<(NodeId NodeId, string DisplayName)> _breadcrumb = [];
     private NodeId? _breadcrumbFor;
+    private int _breadcrumbSequence;
 
     protected override void OnInitialized()
     {
@@ -53,6 +54,8 @@
     private void OnSelectionChanged()
         => _ = InvokeAsync(async () =>
         {
+            int sequence = ++_breadcrumbSequence;
+
             var node = State.SelectedNode;
             if (node is null)
             {
@@ -69,16 +72,24 @@
 
             StateHasChanged(); // Show the new title immediately.
 
+            List<(NodeId, string)> breadcrumb;
             try
             {
-                _breadcrumb = await Browser.GetBrowsePathAsync(node.NodeId);
-                _breadcrumbFor = node.NodeId;
+                breadcrumb = await Browser.GetBrowsePathAsync(node.NodeId);
             }
             catch (Exception)
             {
-                _breadcrumb = [];
+                breadcrumb = [];
             }
 
+            // A newer selection superseded this fetch; discard the result.
+            if (sequence != _breadcrumbSequence)
+            {
+                return;
+            }
+
+            _breadcrumb = breadcrumb;
+            _breadcrumbFor = node.NodeId;
             StateHasChanged();
         });
 

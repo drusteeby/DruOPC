@@ -126,13 +126,22 @@ public sealed class UaEventLog : IAsyncDisposable
 
     private void OnSessionReplaced(Opc.Ua.Client.Session newSession)
     {
-        // The SDK cloned our subscription onto the recreated session; re-bind.
-        var clone = newSession.Subscriptions.FirstOrDefault(s => s.DisplayName == "UaScope events");
-        if (clone is not null)
+        // Serialize with in-flight start/stop operations.
+        _lock.Wait();
+        try
         {
-            _subscription = clone;
-            _monitoredItem = clone.MonitoredItems.FirstOrDefault();
-            _logger.LogInformation("Event subscription re-bound to recreated session");
+            // The SDK cloned our subscription onto the recreated session; re-bind.
+            var clone = newSession.Subscriptions.FirstOrDefault(s => s.DisplayName == "UaScope events");
+            if (clone is not null)
+            {
+                _subscription = clone;
+                _monitoredItem = clone.MonitoredItems.FirstOrDefault();
+                _logger.LogInformation("Event subscription re-bound to recreated session");
+            }
+        }
+        finally
+        {
+            _lock.Release();
         }
     }
 

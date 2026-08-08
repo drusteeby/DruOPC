@@ -101,18 +101,15 @@
         StateHasChanged();
     }
 
-    private async Task NavigateAsync(UaReferenceRow row)
+    private Task NavigateAsync(UaReferenceRow row)
     {
-        if (row.TargetNodeId is null)
+        if (row.TargetNodeId is not null)
         {
-            return;
+            // Expands the tree to the target and selects it.
+            State.RequestReveal(row.TargetNodeId);
         }
 
-        var node = await Browser.ResolveNodeAsync(row.TargetNodeId.ToString());
-        if (node is not null)
-        {
-            State.Select(node);
-        }
+        return Task.CompletedTask;
     }
 
     public void Dispose()

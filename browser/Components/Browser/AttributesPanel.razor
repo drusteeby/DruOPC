@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject UaBrowserService Browser
 @inject BrowserState State
+@inject IJSRuntime Js
 
 <div class="panel attributes-panel">
     <div class="panel-header">
@@ -21,7 +22,7 @@
         {
             <table class="grid">
                 <thead>
-                    <tr><th>Attribute</th><th>Value</th></tr>
+                    <tr><th>Attribute</th><th>Value</th><th></th></tr>
                 </thead>
                 <tbody>
                     @foreach (var row in _rows)
@@ -34,6 +35,9 @@
                                 {
                                     <div class="value-detail">@row.Detail</div>
                                 }
+                            </td>
+                            <td class="row-actions">
+                                <button class="mini" title="Copy value" @onclick="() => CopyAsync(row.Value)">⧉</button>
                             </td>
                         </tr>
                     }
@@ -92,6 +96,19 @@
         }
 
         StateHasChanged();
+    }
+
+    private async Task CopyAsync(string text)
+    {
+        try
+        {
+            await Js.InvokeAsync<bool>("uascope.copyText", text);
+            State.Notify("Copied value");
+        }
+        catch (Exception)
+        {
+            State.Notify("Could not access the clipboard", isError: true);
+        }
     }
 
     public void Dispose()
