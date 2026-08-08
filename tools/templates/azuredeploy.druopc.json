@@ -1,0 +1,96 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "dnsNameLabel": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "DNS label for the public IP (defaults to druopc-<unique>). The apps become reachable at <label>.<region>.azurecontainer.io"
+      }
+    },
+    "addAlarmSimulation": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable the alarms & conditions simulation"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region for the container group"
+      }
+    }
+  },
+  "variables": {
+    "dnsLabel": "[if(empty(parameters('dnsNameLabel')), concat('druopc-', uniqueString(resourceGroup().id)), parameters('dnsNameLabel'))]",
+    "fqdn": "[concat(variables('dnsLabel'), '.', parameters('location'), '.azurecontainer.io')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerInstance/containerGroups",
+      "apiVersion": "2023-05-01",
+      "name": "druopc",
+      "location": "[parameters('location')]",
+      "properties": {
+        "osType": "Linux",
+        "restartPolicy": "Always",
+        "ipAddress": {
+          "type": "Public",
+          "dnsNameLabel": "[variables('dnsLabel')]",
+          "ports": [
+            { "protocol": "TCP", "port": 50000 },
+            { "protocol": "TCP", "port": 8080 },
+            { "protocol": "TCP", "port": 5080 }
+          ]
+        },
+        "containers": [
+          {
+            "name": "simulator",
+            "properties": {
+              "image": "ghcr.io/drusteeby/druopc-simulator:latest",
+              "ports": [
+                { "protocol": "TCP", "port": 50000 },
+                { "protocol": "TCP", "port": 8080 }
+              ],
+              "environmentVariables": [
+                { "name": "OpcPlc__OpcUa__Hostname", "value": "[variables('fqdn')]" },
+                { "name": "OpcPlc__Simulation__AddAlarmSimulation", "value": "[string(parameters('addAlarmSimulation'))]" }
+              ],
+              "resources": {
+                "requests": { "cpu": 1, "memoryInGB": 1.5 }
+              }
+            }
+          },
+          {
+            "name": "browser",
+            "properties": {
+              "image": "ghcr.io/drusteeby/druopc-browser:latest",
+              "ports": [
+                { "protocol": "TCP", "port": 5080 }
+              ],
+              "environmentVariables": [
+                { "name": "ASPNETCORE_URLS", "value": "http://0.0.0.0:5080" }
+              ],
+              "resources": {
+                "requests": { "cpu": 1, "memoryInGB": 1 }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "opcUaEndpoint": {
+      "type": "string",
+      "value": "[concat('opc.tcp://', variables('fqdn'), ':50000')]"
+    },
+    "browserUrl": {
+      "type": "string",
+      "value": "[concat('http://', variables('fqdn'), ':5080')]"
+    }
+  }
+}

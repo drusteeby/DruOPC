@@ -1,0 +1,46 @@
+# Hardened public demo of DruOPC: simulator + browser, alarms on, with
+# resource limits and non-default credentials.
+#
+#   1. Set real passwords:  export DRUOPC_ADMIN_PW=...  DRUOPC_USER_PW=...
+#   2. docker compose up -d
+#   3. Point visitors at http://<host>:5080 (connect to opc.tcp://simulator:50000)
+#
+# Notes for operators:
+# - Writes and alarm acknowledgements only affect the simulation, and the
+#   simulation continuously overwrites its own values; letting demo visitors
+#   write is safe and is the "wow" moment. To forbid it anyway, front the
+#   browser with an authenticating reverse proxy.
+# - Port 5080 is plain HTTP. For a public demo put a TLS reverse proxy
+#   (Caddy/Traefik/nginx) in front and only expose 443 + 50000.
+# - Restarting the stack resets all simulation state; a nightly
+#   `docker compose restart` keeps the demo clean.
+
+services:
+  simulator:
+    image: ghcr.io/drusteeby/druopc-simulator:latest
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.5
+    ports:
+      - "50000:50000" # OPC UA endpoint
+    environment:
+      OpcPlc__OpcUa__Hostname: simulator
+      OpcPlc__Simulation__AddAlarmSimulation: "true"
+      # Never ship the well-known defaults on a public endpoint.
+      OpcPlc__AdminPassword: ${DRUOPC_ADMIN_PW:?set DRUOPC_ADMIN_PW}
+      OpcPlc__DefaultPassword: ${DRUOPC_USER_PW:?set DRUOPC_USER_PW}
+    volumes:
+      - simulator-pki:/app/pki
+
+  browser:
+    image: ghcr.io/drusteeby/druopc-browser:latest
+    restart: unless-stopped
+    mem_limit: 768m
+    cpus: 1.0
+    ports:
+      - "5080:8080"
+    depends_on:
+      - simulator
+
+volumes:
+  simulator-pki:

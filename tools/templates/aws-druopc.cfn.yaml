@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  DruOPC on a single EC2 instance: the OPC UA simulator (port 50000, pn.json
+  on 8080) and the web browser client (port 5080), run as Docker containers.
+  Deploy via CloudFormation -> Create stack -> Upload a template file.
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.small
+    Description: EC2 instance type
+  AllowedCidr:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: CIDR allowed to reach the instance (tighten this to your IP!)
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: Amazon Linux 2023 AMI (resolved automatically)
+
+Resources:
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: DruOPC ports
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 50000
+          ToPort: 50000
+          CidrIp: { Ref: AllowedCidr }
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: { Ref: AllowedCidr }
+        - IpProtocol: tcp
+          FromPort: 5080
+          ToPort: 5080
+          CidrIp: { Ref: AllowedCidr }
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: { Ref: InstanceType }
+      ImageId: { Ref: LatestAmiId }
+      SecurityGroupIds:
+        - Fn::GetAtt: [SecurityGroup, GroupId]
+      Tags:
+        - Key: Name
+          Value: druopc
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -euxo pipefail
+          dnf install -y docker
+          systemctl enable --now docker
+
+          PUBLIC_HOSTNAME=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname || true)
+
+          docker run -d --name druopc-simulator --restart unless-stopped \
+            -p 50000:50000 -p 8080:8080 \
+            -e "OpcPlc__OpcUa__Hostname=${PUBLIC_HOSTNAME:-localhost}" \
+            -e OpcPlc__Simulation__AddAlarmSimulation=true \
+            -v druopc-pki:/app/pki \
+            ghcr.io/drusteeby/druopc-simulator:latest
+
+          docker run -d --name druopc-browser --restart unless-stopped \
+            -p 5080:8080 \
+            ghcr.io/drusteeby/druopc-browser:latest
+
+Outputs:
+  OpcUaEndpoint:
+    Value:
+      Fn::Sub: "opc.tcp://${Instance.PublicDnsName}:50000"
+  BrowserUrl:
+    Value:
+      Fn::Sub: "http://${Instance.PublicDnsName}:5080"

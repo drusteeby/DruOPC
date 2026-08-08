@@ -1,5 +1,10 @@
 # DruOPC
 
+[![PR](https://github.com/drusteeby/DruOPC/actions/workflows/pr.yml/badge.svg)](https://github.com/drusteeby/DruOPC/actions/workflows/pr.yml)
+[![Release](https://img.shields.io/github/v/release/drusteeby/DruOPC)](https://github.com/drusteeby/DruOPC/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE.md)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-☕-FFDD00)](https://buymeacoffee.com/drusteeby)
+
 **DruOPC** is a two-piece toolkit for learning, testing and demonstrating
 OPC UA:
 
@@ -16,7 +21,8 @@ and separately (point the browser at a real PLC; point any OPC UA client at the
 simulator).
 
 Want to help? See **[CONTRIBUTING.md](CONTRIBUTING.md)** — bug reports, docs
-fixes and pull requests are all welcome.
+fixes and pull requests are all welcome. If DruOPC saves you a license dongle
+hunt, you can [buy me a coffee](https://buymeacoffee.com/drusteeby). ☕
 
 > This is a fork of
 > [Azure-Samples/iot-edge-opc-plc](https://github.com/Azure-Samples/iot-edge-opc-plc)
@@ -286,6 +292,35 @@ Any `OpcPlc__*` environment variable from the
 keeps the server certificate stable across restarts. To build an image locally
 instead of pulling, the SDK does it without a Dockerfile:
 `dotnet publish src -c Release /t:PublishContainer`.
+
+## Deploying to a cloud
+
+> All cloud deploys pull the public container images from GHCR.
+
+**Azure** — one click, runs both apps in a Container Instances group and
+outputs the OPC UA endpoint and browser URL:
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fdrusteeby%2FDruOPC%2Fmain%2Ftools%2Ftemplates%2Fazuredeploy.druopc.json)
+
+**AWS** — CloudFormation template running both apps on a single EC2 instance:
+download [`tools/templates/aws-druopc.cfn.yaml`](tools/templates/aws-druopc.cfn.yaml),
+then in the CloudFormation console choose *Create stack → Upload a template
+file*. Tighten the `AllowedCidr` parameter to your own IP.
+
+**Google Cloud** — Cloud Run only serves HTTP, so it fits the browser but not
+the simulator's raw `opc.tcp` port:
+
+```console
+gcloud run deploy druopc-browser --image ghcr.io/drusteeby/druopc-browser:latest \
+  --port 8080 --allow-unauthenticated --region us-central1
+```
+
+For the simulator on GCP, use a Compute Engine VM with the
+[compose file](compose.yaml), same as any other Linux host.
+
+**Public demo instance** — [`deploy/demo/compose.yaml`](deploy/demo/compose.yaml)
+is a hardened variant (non-default passwords required, resource limits, alarms
+enabled) for hosting a shared "try it live" instance on any Docker host.
 
 ## Installing from package managers
 

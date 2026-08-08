@@ -32,6 +32,8 @@ parts:
       - curl
       - ca-certificates
       - git
+      # The .NET SDK itself needs ICU in the build environment.
+      - libicu74
     override-build: |
       craftctl set version="$(git -C "$CRAFT_PART_SRC" describe --tags --always | sed 's/^v//')"
 
