@@ -133,7 +133,8 @@ touching it:
   # Linux/macOS
   OpcPlc__Simulation__AddAlarmSimulation=true OpcPlc__OpcUa__ServerPort=51000 dotnet run --project src
 
-  # Windows PowerShell
+  # Windows PowerShell (the variable persists for the terminal session;
+  # unset with: $env:OpcPlc__Simulation__AddAlarmSimulation=$null)
   $env:OpcPlc__Simulation__AddAlarmSimulation="true"; dotnet run --project src
   ```
 
@@ -154,13 +155,13 @@ Keys are relative to the `OpcPlc` section, so `OpcUa:ServerPort` means
 |---|---|---|
 | `OpcUa:ServerPort` | `50000` | OPC UA endpoint port (`opc.tcp://<host>:<port>`) |
 | `OpcUa:ServerPath` | `""` | Optional URL path suffix for the endpoint |
-| `OpcUa:Hostname` | machine name | Hostname used in the endpoint and certificate |
+| `OpcUa:Hostname` | machine name (shipped config sets `localhost`) | Hostname used in the endpoint and certificate |
 | `OpcUa:EnableUnsecureTransport` | `true` | Also offer a SecurityMode=None endpoint (handy for dev; disable in production) |
 | `OpcUa:MaxSessionCount` / `MaxSubscriptionCount` / `MaxQueuedRequestCount` | `100` / `100` / `2000` | Server limits |
 | `OpcUa:MaxSessionTimeout` | `3600000` | Session idle timeout (ms) |
 | `OpcUa:OpcMaxStringLength` | `1048576` | Max transferable string length |
-| `OpcUa:LdsRegistrationInterval` | `0` | LDS registration interval in ms (0 = off) |
-| `WebServerPort` | `8080` | HTTP port serving the OPC Publisher file (`/pn.json`) |
+| `OpcUa:LdsRegistrationInterval` | `0` | Registration interval in ms with an OPC UA Local Discovery Server, if you run one (0 = off) |
+| `WebServerPort` | `8080` | HTTP port serving the `pn.json` file (a ready-made node list for Microsoft's *OPC Publisher* edge module; ignore if you don't use it) |
 | `ShowPublisherConfigJsonIp` / `ShowPublisherConfigJsonPh` | `true` / `false` | Write/log `pn.json` using IP / hostname as EndpointUrl |
 | `PnJson` | `pn.json` | Name of the OPC Publisher file |
 | `LogLevelCli` | `info` | Log level (`critical`…`trace`) |
@@ -246,9 +247,9 @@ simulated — they hold whatever a client last wrote (unless the
   namespace.
 - `FolderList` nests folders recursively.
 
-The bundled [`src/nodesfile.json`](src/nodesfile.json) models a two-station
-assembly line (`DemoLine/Station10`, `DemoLine/Station20`) whose handshake bits the TagWriter service
-animates.
+The bundled [`src/nodesfile.json`](src/nodesfile.json) models a four-station
+assembly line (`DemoLine/Station10` … `DemoLine/Station60`); the TagWriter service animates the Station10
+station's handshake tags.
 
 ## Running in a container
 

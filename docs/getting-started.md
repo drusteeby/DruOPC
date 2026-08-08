@@ -53,15 +53,36 @@ If that prints `10.x` or higher, skip ahead. Otherwise install it:
 
 Close and reopen your terminal afterwards so `dotnet` is on your PATH.
 
+> **Locked-down work laptop?** The installer needs administrator rights, and
+> `winget` may be disabled by IT policy. Either ask IT to install the ".NET SDK",
+> or use the no-admin option: on the download page pick **Binaries → x64 (zip)**,
+> extract it anywhere you have write access, and use the full path to
+> `dotnet.exe` in the commands below.
+
 ## Step 2 — Get the code
+
+If you have git:
 
 ```console
 git clone https://github.com/drusteeby/iot-edge-opc-plc.git
 cd iot-edge-opc-plc
 ```
 
-No git? Use GitHub's **Code → Download ZIP** button and unzip it, then `cd` into
-the folder in your terminal.
+**No git? Use the ZIP** (nothing wrong with that):
+
+1. On the GitHub page, click the green **Code** button → **Download ZIP**.
+2. Right-click the downloaded file → **Extract All**. Watch out: Windows often
+   extracts to a *nested* folder — `iot-edge-opc-plc-main\iot-edge-opc-plc-main`.
+3. In PowerShell, change into the **inner** folder — the one that directly
+   contains `src` and `browser`:
+
+   ```powershell
+   cd $env:USERPROFILE\Downloads\iot-edge-opc-plc-main\iot-edge-opc-plc-main
+   dir   # you should see: src, browser, docs, tests, ...
+   ```
+
+   If `dir` does not show `src` and `browser`, you are one folder too high or
+   too low — every command below is run from this folder.
 
 ## Step 3 — Start the simulator
 
@@ -72,7 +93,7 @@ dotnet run --project src
 ```
 
 The first run downloads packages and compiles, which takes a minute or two. You know
-it is ready when you see:
+it is ready when the log shows lines containing:
 
 ```text
 OPC UA Server started
@@ -82,6 +103,11 @@ PLC simulation started, press Ctrl+C to exit ...
 Your simulated PLC is now listening at **`opc.tcp://localhost:50000`**. Leave this
 window open.
 
+> **Windows may pop a firewall dialog** ("Windows Defender Firewall has blocked
+> some features…"). For this guide everything runs on your own machine, so it
+> works either way — but click **Allow access** if other computers should be able
+> to reach the simulator or UaScope later.
+
 > **Want alarms too?** Stop the server (Ctrl+C) and restart it with the alarm
 > simulation switched on:
 >
@@ -90,6 +116,10 @@ window open.
 >
 > Or edit `src/appsettings.json` and set `"AddAlarmSimulation": true`. The
 > [configuration reference](../README.md#configuration) lists every setting.
+>
+> Note for PowerShell: the `$env:` variable sticks for that terminal window. To
+> turn alarms back off later in the same window, run
+> `$env:OpcPlc__Simulation__AddAlarmSimulation=$null` before restarting.
 
 ## Step 4 — Start UaScope
 
@@ -126,10 +156,15 @@ Try these, in order — together they touch everything a first session needs:
    once per second, with a small live trend line.
 3. **Search**: type `pallet` into the search box above the tree and press Enter.
    Click a result — the tree expands to the node and selects it.
-4. **Write a value**: in the tree, find **Objects → OpcPlc → DemoLine→ Station10 →
-   St10_Data.Header.PalletNumber** (or search for `PalletNumber`), watch it with
-   **👁**, then click the **✎ (pencil)** in its watch row, type `1234`, press Enter.
-   The value changes — you just wrote to a tag over OPC UA.
+4. **Write a value**: in the tree, find **Objects → OpcPlc → DemoLine→ Station20 →
+   St20_Data.Header.UnitId.Data** (or search for `UnitId`), watch it with
+   **👁**, then click the **✎ (pencil)** in its watch row, type `PART-1234`,
+   press Enter. The value changes — you just wrote to a tag over OPC UA.
+
+   (Stick to the Station20 station for this test: the simulator includes a "tag
+   writer" demo that periodically rewrites the Station10 handshake tags to mimic a
+   running station. If you write to an Station10 tag and it later changes by itself,
+   that is the simulation writing — not your write failing.)
 5. **Call a method**: expand **Objects → OpcPlc → Methods**, hover over
    **ResetStepUp** and click **▶**. Click **Call** in the dialog. Methods are how
    OPC UA servers expose commands ("reset counter", "start pump").
@@ -141,10 +176,18 @@ Try these, in order — together they touch everything a first session needs:
    appear with red dots; click **✔ ack** to acknowledge one, like you would in an
    HMI alarm summary.
 
+**Done for now?** Press **Ctrl+C** in each terminal window (or simply close the
+windows). That stops both programs completely — nothing keeps running in the
+background, and starting them again later is the same two `dotnet run` commands.
+
 ## Connecting to a real PLC
 
 UaScope works with any OPC UA server — Siemens S7-1500, Beckhoff TwinCAT,
 Rockwell, Kepware, Ignition, and so on.
+
+Browsing, watching and subscribing are **read-only** — nothing on the PLC changes
+unless you explicitly write a value (✎) or call a method (▶). Treat those two
+actions with the same care as forcing a tag from an HMI on a running line.
 
 1. Find the server's endpoint URL. It is in the device/server configuration and
    looks like `opc.tcp://<ip-address>:<port>`. Common ports: 4840 (default),

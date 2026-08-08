@@ -8,6 +8,24 @@ from zero to a live connection in 15 minutes.
 New to OPC UA terminology? Jump to the [glossary](#glossary) whenever a term is
 unfamiliar.
 
+**Contents:**
+[The screen at a glance](#the-screen-at-a-glance) ·
+[Connecting](#connecting) ·
+[Certificates and trust](#certificates-and-trust) ·
+[The address-space tree](#the-address-space-tree) ·
+[Attributes and references](#attributes-and-references) ·
+[The watch list](#the-watch-list) ·
+[Writing values](#writing-values) ·
+[Events](#events) ·
+[Alarms & Conditions](#alarms--conditions) ·
+[History](#history) ·
+[Methods](#methods) ·
+[The value inspector](#the-value-inspector) ·
+[Session details](#session-details-status-bar) ·
+[Sharing and multiple servers](#sharing-and-multiple-servers) ·
+[Troubleshooting](#troubleshooting) ·
+[Glossary](#glossary)
+
 ## The screen at a glance
 
 ```text
@@ -304,6 +322,8 @@ clickable:
 | `BadHistoryOperationUnsupported` in the history dialog | The server does not historize this node. Nothing is wrong with the connection. |
 | Acknowledge fails with `BadEventIdUnknown` | The condition changed state between display and click. The row updates within a second — acknowledge again. |
 | Simulator: `Failed to establish tcp listener` / port in use | Another program (or a second simulator) already uses port 50000. Stop it, or change `OpcPlc:OpcUa:ServerPort` in `src/appsettings.json`. |
+| Simulator: startup error about the web server / port 8080 | Port 8080 is a popular dev port and something else owns it. Change `OpcPlc:WebServerPort` in `src/appsettings.json` (it only serves the optional `pn.json` file). |
+| Works on `localhost`, but a colleague's PC cannot reach the simulator or UaScope | Windows Firewall blocked the ports when you dismissed its first-run dialog. Allow the apps in *Windows Security → Firewall → Allow an app*, or re-run and click **Allow access**. |
 | UaScope page does not load | The UaScope host process is not running, or another program owns port 5080. Restart with `dotnet run --project browser`; set `ASPNETCORE_URLS=http://localhost:<other-port>` to move it. |
 | Clipboard buttons do nothing | Browsers restrict clipboard access on non-HTTPS pages served from other machines. Use UaScope on `localhost`, or serve it over HTTPS. |
 
