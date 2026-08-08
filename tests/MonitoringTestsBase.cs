@@ -25,6 +25,9 @@ public abstract class SubscriptionTestsBase : SimulatorTestsBase
     /// </summary>
     protected MonitoredItem MonitoredItem;
 
+    /// <summary>The server-assigned id of the test subscription.</summary>
+    protected uint SubscriptionId => _subscription?.Id ?? 0;
+
     private Subscription _subscription;
 
     private readonly ConcurrentQueue<MonitoredItemNotificationEventArgs> _receivedEvents = new();

@@ -19,7 +19,12 @@ public class RoundRobinSource : IRandomSource
 
     public void NextBytes(byte[] bytes, int offset, int count)
     {
-        // Not used.
+        // Deterministic but unique per call: used e.g. for event id GUIDs,
+        // which must not collide (they key the alarm acknowledge lookup).
+        for (int i = 0; i < count; i++)
+        {
+            bytes[offset + i] = unchecked((byte)_seed++);
+        }
     }
 
     public int NextInt32(int max)

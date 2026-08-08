@@ -15,6 +15,23 @@
             <span class="count-badge">@EventLog.Events.Count</span>
         </span>
         <span class="header-controls">
+            <label title="Only receive events at or above this severity">
+                sev
+                <select value="@EventLog.MinSeverity" @onchange="OnSeverityFilterChanged">
+                    <option value="0">all</option>
+                    <option value="200">≥ 200</option>
+                    <option value="400">≥ 400</option>
+                    <option value="700">≥ 700</option>
+                </select>
+            </label>
+            <label title="Only receive events of this type">
+                type
+                <select value="@_eventTypeFilter" @onchange="OnTypeFilterChanged">
+                    <option value="all">all</option>
+                    <option value="conditions">conditions</option>
+                    <option value="system">system</option>
+                </select>
+            </label>
             <button class="mini" title="Export as CSV" @onclick="ExportCsvAsync" disabled="@(EventLog.Events.Count == 0)">⭳ csv</button>
             <button class="mini" title="Clear received events" @onclick="() => EventLog.Clear()">🗑</button>
             <button class="mini" title="Stop event subscription" @onclick="StopAsync" disabled="@(!EventLog.IsActive)">⏹</button>
@@ -61,6 +78,40 @@
         => int.TryParse(severity, out int value)
             ? value >= 700 ? "high" : value >= 400 ? "mid" : "low"
             : "low";
+
+    private string _eventTypeFilter = "all";
+
+    private async Task OnSeverityFilterChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            await EventLog.SetFilterAsync(int.Parse((string)e.Value!), EventLog.EventTypeFilter);
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Could not apply the event filter: {ex.Message}", isError: true);
+        }
+    }
+
+    private async Task OnTypeFilterChanged(ChangeEventArgs e)
+    {
+        _eventTypeFilter = (string)e.Value!;
+        Opc.Ua.NodeId? typeId = _eventTypeFilter switch
+        {
+            "conditions" => Opc.Ua.ObjectTypeIds.ConditionType,
+            "system" => Opc.Ua.ObjectTypeIds.SystemEventType,
+            _ => null,
+        };
+
+        try
+        {
+            await EventLog.SetFilterAsync(EventLog.MinSeverity, typeId);
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Could not apply the event filter: {ex.Message}", isError: true);
+        }
+    }
 
     private async Task StopAsync()
     {

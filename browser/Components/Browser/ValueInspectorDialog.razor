@@ -1,0 +1,157 @@
+@using Opc.Ua
+@using System.Text.Json
+@inject UaBrowserService Browser
+@inject BrowserState State
+@inject IJSRuntime Js
+
+@if (_visible)
+{
+    <div class="modal-backdrop" @onclick="Close">
+        <div class="modal wide" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <span>Value: @_nodeName</span>
+                <span class="header-controls">
+                    <button class="mini" title="Re-read the value" @onclick="ReadAsync">⟳</button>
+                    <button class="mini" title="Copy raw text" @onclick="CopyAsync" disabled="@(_rawText.Length == 0)">⧉</button>
+                    <button class="mini" @onclick="Close">✖</button>
+                </span>
+            </div>
+            <div class="modal-body">
+                @if (_loading)
+                {
+                    <div class="hint">Reading …</div>
+                }
+                else if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="call-result bad">@_error</div>
+                }
+                else
+                {
+                    <div class="dim value-meta">@_meta</div>
+                    @if (_json is { } json)
+                    {
+                        <div class="json-tree">
+                            <JsonTreeNode Element="json.RootElement" Label="@_nodeName" Depth="0" />
+                        </div>
+                    }
+                    else
+                    {
+                        <pre class="value-raw">@_rawText</pre>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _visible;
+    private bool _loading;
+    private string _error = "";
+    private string _nodeName = "";
+    private string _meta = "";
+    private string _rawText = "";
+    private NodeId? _nodeId;
+    private JsonDocument? _json;
+
+    public async Task OpenAsync(NodeId nodeId, string nodeName)
+    {
+        _visible = true;
+        _nodeId = nodeId;
+        _nodeName = nodeName;
+        await ReadAsync();
+    }
+
+    private async Task ReadAsync()
+    {
+        if (_nodeId is null)
+        {
+            return;
+        }
+
+        _loading = true;
+        _error = "";
+        _json?.Dispose();
+        _json = null;
+        _rawText = "";
+        StateHasChanged();
+
+        try
+        {
+            var dataValue = await Browser.ReadValueAsync(_nodeId);
+            _meta = $"{UaFormat.FormatStatusCode(dataValue.StatusCode)} | source: {dataValue.SourceTimestamp.ToLocalTime():yyyy-MM-dd HH:mm:ss.fff} | server: {dataValue.ServerTimestamp.ToLocalTime():yyyy-MM-dd HH:mm:ss.fff}";
+            RenderValue(dataValue.Value);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Read failed: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private void RenderValue(object? value)
+    {
+        // Structures render as an expandable JSON tree; everything else as
+        // full, untruncated text.
+        string json = value switch
+        {
+            IEncodeable encodeable => UaFormat.EncodeToJson(encodeable),
+            ExtensionObject { Body: IEncodeable body } => UaFormat.EncodeToJson(body),
+            ExtensionObject[] extensions => "[" + string.Join(",", extensions
+                .Select(e => e.Body is IEncodeable body ? UaFormat.EncodeToJson(body) : "null")
+                .Select(s => s.Length == 0 ? "null" : s)) + "]",
+            _ => "",
+        };
+
+        if (json.Length > 0)
+        {
+            try
+            {
+                _json = JsonDocument.Parse(json);
+                _rawText = json;
+                return;
+            }
+            catch (JsonException)
+            {
+                // Fall through to raw text.
+            }
+        }
+
+        _rawText = value switch
+        {
+            null => "(null)",
+            string s => s,
+            byte[] bytes => Convert.ToHexString(bytes.AsSpan(0, Math.Min(bytes.Length, 65_536)))
+                + (bytes.Length > 65_536 ? $"… ({bytes.Length} bytes)" : $" ({bytes.Length} bytes)"),
+            System.Collections.IEnumerable enumerable and not string =>
+                string.Join(Environment.NewLine, enumerable.Cast<object?>().Select((v, i) => $"[{i}] {UaFormat.FormatValue(v)}")),
+            _ => UaFormat.FormatValue(value),
+        };
+    }
+
+    private async Task CopyAsync()
+    {
+        try
+        {
+            await Js.InvokeAsync<bool>("uascope.copyText", _rawText);
+            State.Notify("Copied value");
+        }
+        catch (Exception)
+        {
+            State.Notify("Could not access the clipboard", isError: true);
+        }
+    }
+
+    private void Close()
+    {
+        _visible = false;
+        _json?.Dispose();
+        _json = null;
+        StateHasChanged();
+    }
+}

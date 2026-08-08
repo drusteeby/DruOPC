@@ -34,6 +34,12 @@ public sealed class UaEventLog : IAsyncDisposable
 
     public string NotifierName { get; private set; } = "";
 
+    /// <summary>Minimum severity filtered server-side (0 = all).</summary>
+    public int MinSeverity { get; private set; }
+
+    /// <summary>Event type restriction filtered server-side (null = all).</summary>
+    public NodeId? EventTypeFilter { get; private set; }
+
     /// <summary>Thread-safe snapshot of the received events, newest first.</summary>
     public IReadOnlyList<UaEventRow> Events => _eventsSnapshot;
 
@@ -80,6 +86,8 @@ public sealed class UaEventLog : IAsyncDisposable
                 DiscardOldest = true,
             };
 
+            ApplyWhereClause((EventFilter)_monitoredItem.Filter);
+
             _monitoredItem.Notification += OnNotification;
             _subscription.AddItem(_monitoredItem);
             await _subscription.ApplyChangesAsync().ConfigureAwait(false);
@@ -111,6 +119,51 @@ public sealed class UaEventLog : IAsyncDisposable
         }
 
         Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Change the server-side event filter; re-subscribes when active.
+    /// </summary>
+    public async Task SetFilterAsync(int minSeverity, NodeId? eventTypeId)
+    {
+        MinSeverity = minSeverity;
+        EventTypeFilter = eventTypeId;
+
+        if (IsActive && NotifierNodeId is { } notifier)
+        {
+            await StartAsync(notifier, NotifierName).ConfigureAwait(false);
+        }
+    }
+
+    private void ApplyWhereClause(EventFilter filter)
+    {
+        filter.WhereClause = new ContentFilter();
+
+        ContentFilterElement? typeElement = null;
+        ContentFilterElement? severityElement = null;
+
+        if (EventTypeFilter is not null && !NodeId.IsNull(EventTypeFilter))
+        {
+            typeElement = filter.WhereClause.Push(FilterOperator.OfType, EventTypeFilter);
+        }
+
+        if (MinSeverity > 0)
+        {
+            severityElement = filter.WhereClause.Push(
+                FilterOperator.GreaterThanOrEqual,
+                new SimpleAttributeOperand
+                {
+                    TypeDefinitionId = ObjectTypeIds.BaseEventType,
+                    AttributeId = Attributes.Value,
+                    BrowsePath = [new QualifiedName(BrowseNames.Severity)],
+                },
+                new LiteralOperand { Value = new Variant((ushort)MinSeverity) });
+        }
+
+        if (typeElement is not null && severityElement is not null)
+        {
+            filter.WhereClause.Push(FilterOperator.And, typeElement, severityElement);
+        }
     }
 
     public void Clear()

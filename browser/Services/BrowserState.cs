@@ -16,6 +16,12 @@ public sealed class BrowserState
     /// <summary>Raised when a component asks the tree to expand to and show a node.</summary>
     public event Action<NodeId>? RevealRequested;
 
+    /// <summary>Raised when a component asks to open the value inspector for a node.</summary>
+    public event Action<NodeId, string>? InspectRequested;
+
+    /// <summary>Raised when a component asks to open the history dialog for a node.</summary>
+    public event Action<NodeId, string>? HistoryRequested;
+
     public void Select(UaTreeNode? node)
     {
         SelectedNode = node;
@@ -27,6 +33,18 @@ public sealed class BrowserState
     /// </summary>
     public void RequestReveal(NodeId nodeId)
         => RevealRequested?.Invoke(nodeId);
+
+    /// <summary>
+    /// Ask to open the full value inspector for a node.
+    /// </summary>
+    public void RequestInspect(NodeId nodeId, string displayName)
+        => InspectRequested?.Invoke(nodeId, displayName);
+
+    /// <summary>
+    /// Ask to open the history dialog for a node.
+    /// </summary>
+    public void RequestHistory(NodeId nodeId, string displayName)
+        => HistoryRequested?.Invoke(nodeId, displayName);
 
     /// <summary>
     /// Show a transient notification toast.

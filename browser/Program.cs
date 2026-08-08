@@ -14,6 +14,8 @@ builder.Services.AddScoped<UaConnection>();
 builder.Services.AddScoped<UaBrowserService>();
 builder.Services.AddScoped<UaWatchList>();
 builder.Services.AddScoped<UaEventLog>();
+builder.Services.AddScoped<UaAlarmList>();
+builder.Services.AddScoped<UaHistoryService>();
 builder.Services.AddScoped<BrowserState>();
 
 var app = builder.Build();

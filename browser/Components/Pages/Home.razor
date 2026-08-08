@@ -39,13 +39,30 @@
         }
 
         <details class="identity-menu">
-            <summary title="Authentication settings">@(_useUserName ? $"👤 {_userName}" : "👤 Anonymous")</summary>
+            <summary title="Authentication settings">@IdentitySummary</summary>
             <div class="identity-popup">
-                <label class="check">
-                    <input type="checkbox" @bind="_useUserName" /> Use username / password
-                </label>
-                <input placeholder="user name" @bind="_userName" disabled="@(!_useUserName)" />
-                <input placeholder="password" type="password" @bind="_password" disabled="@(!_useUserName)" />
+                <label class="check"><input type="radio" name="idmode" checked="@(_identityMode == "anonymous")"
+                        @onchange="@(() => _identityMode = "anonymous")" /> Anonymous</label>
+                <label class="check"><input type="radio" name="idmode" checked="@(_identityMode == "username")"
+                        @onchange="@(() => _identityMode = "username")" /> Username / password</label>
+                <label class="check"><input type="radio" name="idmode" checked="@(_identityMode == "certificate")"
+                        @onchange="@(() => _identityMode = "certificate")" /> X509 certificate</label>
+
+                @if (_identityMode == "username")
+                {
+                    <input placeholder="user name" @bind="_userName" />
+                    <input placeholder="password" type="password" @bind="_password" />
+                }
+                else if (_identityMode == "certificate")
+                {
+                    <InputFile OnChange="OnCertificateSelected" accept=".pfx,.p12" />
+                    <input placeholder="certificate password" type="password" @bind="_certPassword" />
+                    @if (_certFileName is not null)
+                    {
+                        <div class="dim">@_certFileName (@(_certBytes?.Length ?? 0) bytes)</div>
+                    }
+                }
+
                 <label class="check">
                     <input type="checkbox" @bind="_useSecurity" /> Prefer secure endpoint
                 </label>
@@ -56,6 +73,9 @@
                 </label>
             </div>
         </details>
+
+        <a class="mini-link" title="Open another server in a new window"
+           href="@NewWindowLink" target="_blank">⧉ new window</a>
 
         <span class="conn-status @Connection.State.ToString().ToLowerInvariant()">
             ●
@@ -74,7 +94,18 @@
 
         <section class="center-panels">
             <WatchPanel />
-            <EventsPanel />
+            <div class="center-tabs">
+                <button class="tab @(_centerTab == "events" ? "active" : "")" @onclick="@(() => _centerTab = "events")">Events</button>
+                <button class="tab @(_centerTab == "alarms" ? "active" : "")" @onclick="@(() => _centerTab = "alarms")">Alarms &amp; Conditions</button>
+            </div>
+            @if (_centerTab == "alarms")
+            {
+                <AlarmsPanel />
+            }
+            else
+            {
+                <EventsPanel />
+            }
         </section>
 
         <section class="right-panels">
@@ -94,6 +125,8 @@
             <span title="Identity">@info.Identity</span>
             <span class="sep">|</span>
             <button class="link" @onclick="() => _showNamespaces = true">@info.Namespaces.Length namespaces</button>
+            <span class="sep">|</span>
+            <button class="link" @onclick="() => _showSubscriptions = true">@(Connection.Session?.Subscriptions?.Count() ?? 0) subscriptions</button>
             @if (!string.IsNullOrEmpty(info.ServerCertificateThumbprint))
             {
                 <span class="sep">|</span>
@@ -108,6 +141,49 @@
 </div>
 
 <MethodDialog @ref="_methodDialog" />
+<HistoryDialog @ref="_historyDialog" />
+<ValueInspectorDialog @ref="_valueInspector" />
+
+@* Subscription inspector dialog *@
+@if (_showSubscriptions && Connection.Session is { } activeSession)
+{
+    <div class="modal-backdrop" @onclick="() => _showSubscriptions = false">
+        <div class="modal wide" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <span>Subscriptions</span>
+                <button class="mini" @onclick="() => _showSubscriptions = false">✖</button>
+            </div>
+            <div class="modal-body">
+                @if (!activeSession.Subscriptions.Any())
+                {
+                    <div class="hint">No active subscriptions in this session.</div>
+                }
+                else
+                {
+                    <table class="grid">
+                        <thead>
+                            <tr><th>Id</th><th>Name</th><th>Publishing interval</th><th>Keep-alive</th><th>Lifetime</th><th>Items</th><th>Enabled</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var sub in activeSession.Subscriptions)
+                            {
+                                <tr>
+                                    <td class="mono">@sub.Id</td>
+                                    <td>@sub.DisplayName</td>
+                                    <td>@sub.CurrentPublishingInterval ms</td>
+                                    <td>@sub.CurrentKeepAliveCount</td>
+                                    <td>@sub.CurrentLifetimeCount</td>
+                                    <td>@sub.MonitoredItemCount</td>
+                                    <td class="@(sub.CurrentPublishingEnabled ? "status-good" : "status-warn")">@sub.CurrentPublishingEnabled</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+}
 
 @* Server certificate trust dialog *@
 @if (Connection.PendingCertificate is { } pending)
@@ -218,13 +294,31 @@
 
     private AddressTree? _tree;
     private MethodDialog? _methodDialog;
+    private HistoryDialog? _historyDialog;
+    private ValueInspectorDialog? _valueInspector;
 
     private string _endpointUrl = "opc.tcp://localhost:50000";
     private bool _useSecurity;
-    private bool _useUserName;
+    private string _identityMode = "anonymous";
     private string _userName = "";
     private string _password = "";
+    private byte[]? _certBytes;
+    private string? _certFileName;
+    private string _certPassword = "";
     private bool _busy;
+    private string _centerTab = "events";
+    private bool _showSubscriptions;
+
+    private string IdentitySummary => _identityMode switch
+    {
+        "username" => $"👤 {_userName}",
+        "certificate" => $"👤 🪪 {_certFileName ?? "certificate"}",
+        _ => "👤 Anonymous",
+    };
+
+    private string NewWindowLink => Connection.SessionInfo is { } info
+        ? $"?endpoint={Uri.EscapeDataString(info.EndpointUrl)}"
+        : ".";
 
     private bool _showEndpoints;
     private bool _discovering;
@@ -242,6 +336,8 @@
     {
         Connection.StateChanged += OnConnectionStateChanged;
         State.Notified += OnNotified;
+        State.InspectRequested += OnInspectRequested;
+        State.HistoryRequested += OnHistoryRequested;
 
         // Deep link: /?endpoint=opc.tcp://…&node=ns=3;s=…
         var query = HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query);
@@ -301,10 +397,60 @@
         }
     }
 
+    private void OnInspectRequested(NodeId nodeId, string displayName)
+        => _ = InvokeAsync(async () =>
+        {
+            if (_valueInspector is not null)
+            {
+                await _valueInspector.OpenAsync(nodeId, displayName);
+            }
+        });
+
+    private void OnHistoryRequested(NodeId nodeId, string displayName)
+        => _ = InvokeAsync(() =>
+        {
+            _historyDialog?.Open(nodeId, displayName);
+        });
+
+    private async Task OnCertificateSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            using var stream = e.File.OpenReadStream(maxAllowedSize: 1024 * 1024);
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            _certBytes = memory.ToArray();
+            _certFileName = e.File.Name;
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Could not read the certificate file: {ex.Message}", isError: true);
+        }
+    }
+
     private IUserIdentity BuildIdentity()
-        => _useUserName
-            ? new UserIdentity(_userName, _password)
-            : new UserIdentity(new AnonymousIdentityToken());
+    {
+        switch (_identityMode)
+        {
+            case "username":
+                return new UserIdentity(_userName, _password);
+
+            case "certificate":
+                if (_certBytes is not { Length: > 0 })
+                {
+                    throw new InvalidOperationException("Select a certificate file (.pfx/.p12) first.");
+                }
+
+                var certificate = System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadPkcs12(
+                    _certBytes,
+                    _certPassword,
+                    System.Security.Cryptography.X509Certificates.X509KeyStorageFlags.Exportable);
+                return new UserIdentity(certificate);
+
+            default:
+                return new UserIdentity(new AnonymousIdentityToken());
+        }
+    }
 
     private async Task ConnectAsync(EndpointDescription? endpoint)
     {
@@ -453,5 +599,7 @@
     {
         Connection.StateChanged -= OnConnectionStateChanged;
         State.Notified -= OnNotified;
+        State.InspectRequested -= OnInspectRequested;
+        State.HistoryRequested -= OnHistoryRequested;
     }
 }

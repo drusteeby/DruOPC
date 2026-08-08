@@ -1,0 +1,52 @@
+@using System.Text.Json
+
+@if (Element.ValueKind is JsonValueKind.Object)
+{
+    <details class="json-node" open="@(Depth < 2)">
+        <summary>@LabelText <span class="dim">{@Element.EnumerateObject().Count()}</span></summary>
+        <div class="json-children">
+            @foreach (var property in Element.EnumerateObject())
+            {
+                <JsonTreeNode Element="property.Value" Label="@property.Name" Depth="Depth + 1" />
+            }
+        </div>
+    </details>
+}
+else if (Element.ValueKind is JsonValueKind.Array)
+{
+    <details class="json-node" open="@(Depth < 2)">
+        <summary>@LabelText <span class="dim">[@Element.GetArrayLength()]</span></summary>
+        <div class="json-children">
+            @{ int index = 0; }
+            @foreach (var item in Element.EnumerateArray())
+            {
+                <JsonTreeNode Element="item" Label="@($"[{index}]")" Depth="Depth + 1" />
+                index++;
+            }
+        </div>
+    </details>
+}
+else
+{
+    <div class="json-leaf">
+        <span class="json-key">@LabelText</span>
+        <span class="json-value mono">@ValueText</span>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public JsonElement Element { get; set; }
+
+    [Parameter] public string? Label { get; set; }
+
+    [Parameter] public int Depth { get; set; }
+
+    private string LabelText => string.IsNullOrEmpty(Label) ? "value" : Label;
+
+    private string ValueText => Element.ValueKind switch
+    {
+        JsonValueKind.String => Element.GetString() ?? "",
+        JsonValueKind.Null => "null",
+        _ => Element.GetRawText(),
+    };
+}

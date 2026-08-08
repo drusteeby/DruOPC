@@ -1,0 +1,198 @@
+@using Opc.Ua
+@using System.Text
+@using System.Globalization
+@inject UaHistoryService History
+@inject BrowserState State
+@inject IJSRuntime Js
+
+@if (_visible)
+{
+    <div class="modal-backdrop" @onclick="Close">
+        <div class="modal wide" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <span>History: @_nodeName</span>
+                <button class="mini" @onclick="Close">✖</button>
+            </div>
+            <div class="modal-body">
+                <div class="history-controls">
+                    <label>From <input type="datetime-local" step="1" @bind="_start" /></label>
+                    <label>To <input type="datetime-local" step="1" @bind="_end" /></label>
+                    <label>
+                        Max points
+                        <select @bind="_maxPoints">
+                            <option value="1000">1000</option>
+                            <option value="5000">5000</option>
+                            <option value="10000">10000</option>
+                        </select>
+                    </label>
+                    <button class="primary" @onclick="ReadAsync" disabled="@_loading">@(_loading ? "Reading …" : "Read")</button>
+                    <button class="mini" title="Export as CSV" @onclick="ExportCsvAsync" disabled="@(_points.Count == 0)">⭳ csv</button>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="call-result bad">@_error</div>
+                }
+                else if (_points.Count > 0)
+                {
+                    @if (_chartPoints is { Length: > 0 })
+                    {
+                        <div class="history-chart-box">
+                            <svg class="history-chart" viewBox="0 0 640 160" preserveAspectRatio="none">
+                                <polyline points="@_chartPoints" />
+                            </svg>
+                            <div class="history-chart-labels">
+                                <span>@UaFormat.FormatValue(_chartMin)</span>
+                                <span>@UaFormat.FormatValue(_chartMax)</span>
+                            </div>
+                        </div>
+                    }
+                    <div class="history-table">
+                        <table class="grid">
+                            <thead><tr><th>Source time</th><th>Value</th><th>Status</th></tr></thead>
+                            <tbody>
+                                @foreach (var point in _points)
+                                {
+                                    <tr class="@(point.IsBad ? "bad" : "")">
+                                        <td class="mono dim">@point.SourceTimestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff")</td>
+                                        <td class="mono">@point.ValueText</td>
+                                        <td>@point.StatusText</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="dim">@_points.Count point(s)</div>
+                }
+                else if (_hasRead)
+                {
+                    <div class="hint">No history in the selected time range.</div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _visible;
+    private bool _loading;
+    private bool _hasRead;
+    private string _error = "";
+    private string _nodeName = "";
+    private NodeId? _nodeId;
+    private DateTime _start = DateTime.Now.AddHours(-1);
+    private DateTime _end = DateTime.Now;
+    private int _maxPoints = 1000;
+    private List<UaHistoryPoint> _points = [];
+    private string? _chartPoints;
+    private double _chartMin;
+    private double _chartMax;
+
+    public void Open(NodeId nodeId, string nodeName)
+    {
+        _visible = true;
+        _nodeId = nodeId;
+        _nodeName = nodeName;
+        _points = [];
+        _chartPoints = null;
+        _error = "";
+        _hasRead = false;
+        _start = DateTime.Now.AddHours(-1);
+        _end = DateTime.Now;
+        StateHasChanged();
+    }
+
+    private async Task ReadAsync()
+    {
+        if (_nodeId is null)
+        {
+            return;
+        }
+
+        _loading = true;
+        _error = "";
+        StateHasChanged();
+
+        try
+        {
+            _points = await History.ReadRawAsync(
+                _nodeId,
+                _start.ToUniversalTime(),
+                _end.ToUniversalTime(),
+                _maxPoints);
+            _hasRead = true;
+            BuildChart();
+        }
+        catch (ServiceResultException sre) when (sre.StatusCode == StatusCodes.BadHistoryOperationUnsupported
+            || sre.StatusCode == StatusCodes.BadHistoryOperationInvalid
+            || sre.StatusCode == StatusCodes.BadNotSupported)
+        {
+            _error = "This server does not support history for this node.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"History read failed: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private void BuildChart()
+    {
+        _chartPoints = null;
+
+        var numeric = _points
+            .Where(p => !p.IsBad && p.Value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal or bool)
+            .Select(p => (p.SourceTimestamp, Value: p.Value is bool b ? (b ? 1d : 0d) : Convert.ToDouble(p.Value)))
+            .ToList();
+
+        if (numeric.Count < 2)
+        {
+            return;
+        }
+
+        _chartMin = numeric.Min(p => p.Value);
+        _chartMax = numeric.Max(p => p.Value);
+        double range = _chartMax - _chartMin;
+        var t0 = numeric[0].SourceTimestamp;
+        double timeSpan = Math.Max(1, (numeric[^1].SourceTimestamp - t0).TotalMilliseconds);
+
+        var sb = new StringBuilder();
+        foreach ((var timestamp, double value) in numeric)
+        {
+            double x = (timestamp - t0).TotalMilliseconds / timeSpan * 640;
+            double y = range < 1e-12 ? 80 : 156 - (value - _chartMin) / range * 152;
+            sb.Append(x.ToString("0.#", CultureInfo.InvariantCulture));
+            sb.Append(',');
+            sb.Append(y.ToString("0.#", CultureInfo.InvariantCulture));
+            sb.Append(' ');
+        }
+
+        _chartPoints = sb.ToString();
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        var sb = new StringBuilder("SourceTimestamp,Value,Status\n");
+        foreach (var point in _points)
+        {
+            string value = point.ValueText.Contains(',') || point.ValueText.Contains('"')
+                ? $"\"{point.ValueText.Replace("\"", "\"\"")}\""
+                : point.ValueText;
+            sb.AppendLine($"{point.SourceTimestamp:o},{value},{point.StatusText}");
+        }
+
+        await Js.InvokeVoidAsync("uascope.downloadFile",
+            $"uascope-history-{DateTime.Now:yyyyMMdd-HHmmss}.csv", "text/csv", sb.ToString());
+    }
+
+    private void Close()
+    {
+        _visible = false;
+        StateHasChanged();
+    }
+}

@@ -398,7 +398,10 @@ namespace AlarmCondition
             node.ConditionName.Value = node.SymbolicName;
             node.Time.Value = DateTime.UtcNow;
             node.ReceiveTime.Value = node.Time.Value;
-            node.BranchId.Value = branchId;
+            // The SDK's ConditionState.IsBranch() dereferences BranchId.Value;
+            // a null value (as opposed to NodeId.Null) crashes every
+            // Acknowledge/AddComment/Confirm call on the condition.
+            node.BranchId.Value = branchId ?? NodeId.Null;
 
             // set up method handlers.
             node.OnEnableDisable = OnEnableDisableAlarm;

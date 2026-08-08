@@ -100,26 +100,39 @@ public static class UaFormat
     {
         if (ext.Body is IEncodeable encodeable)
         {
-            try
-            {
-                // Render structure fields as JSON for readability.
-                using var stream = new MemoryStream();
-                using (var encoder = new JsonEncoder(ServiceMessageContext.GlobalContext, useReversibleEncoding: false, topLevelIsArray: false, stream: stream, leaveOpen: true))
-                {
-                    encodeable.Encode(encoder);
-                    encoder.Close();
-                }
-
-                string json = Encoding.UTF8.GetString(stream.ToArray());
-                return json.Length > 512 ? $"{encodeable.GetType().Name} {json[..512]}…" : $"{encodeable.GetType().Name} {json}";
-            }
-            catch
+            string json = EncodeToJson(encodeable);
+            if (json.Length == 0)
             {
                 return encodeable.GetType().Name;
             }
+
+            return json.Length > 512 ? $"{encodeable.GetType().Name} {json[..512]}…" : $"{encodeable.GetType().Name} {json}";
         }
 
         return $"ExtensionObject({ext.TypeId})";
+    }
+
+    /// <summary>
+    /// Encode a structure value as (non-reversible) JSON, or "" on failure.
+    /// Used by the value inspector for full, untruncated display.
+    /// </summary>
+    public static string EncodeToJson(IEncodeable encodeable)
+    {
+        try
+        {
+            using var stream = new MemoryStream();
+            using (var encoder = new JsonEncoder(ServiceMessageContext.GlobalContext, useReversibleEncoding: false, topLevelIsArray: false, stream: stream, leaveOpen: true))
+            {
+                encodeable.Encode(encoder);
+                encoder.Close();
+            }
+
+            return Encoding.UTF8.GetString(stream.ToArray());
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     public static string FormatStatusCode(StatusCode statusCode)

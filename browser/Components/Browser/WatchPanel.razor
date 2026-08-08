@@ -90,6 +90,8 @@
                                         <button class="mini" title="Write a new value" @onclick="() => StartWrite(item)">✎</button>
                                     }
                                 }
+                                <button class="mini" title="Inspect full value" @onclick="() => State.RequestInspect(item.NodeId, item.DisplayName)">🔍</button>
+                                <button class="mini" title="Read history" @onclick="() => State.RequestHistory(item.NodeId, item.DisplayName)">🕘</button>
                                 <button class="mini" title="Copy value" @onclick="() => CopyAsync(item.Value)">⧉</button>
                                 <button class="mini" title="Show in tree" @onclick="() => State.RequestReveal(item.NodeId)">🎯</button>
                                 <button class="mini" title="Remove from watch list" @onclick="() => WatchList.RemoveAsync(item)">–</button>

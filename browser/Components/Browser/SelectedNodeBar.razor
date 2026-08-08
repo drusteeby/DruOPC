@@ -14,6 +14,11 @@
             <span class="node-bar-name">@node.DisplayName</span>
             <span class="dim">@node.NodeClass</span>
             <span class="node-bar-actions">
+                @if (node.NodeClass == NodeClass.Variable)
+                {
+                    <button class="mini" title="Inspect full value" @onclick="() => State.RequestInspect(node.NodeId, node.DisplayName)">🔍</button>
+                    <button class="mini" title="Read history" @onclick="() => State.RequestHistory(node.NodeId, node.DisplayName)">🕘</button>
+                }
                 <button class="mini" title="Reveal in tree" @onclick="() => State.RequestReveal(node.NodeId)">🎯</button>
                 <button class="mini" title="Copy NodeId" @onclick="() => CopyNodeIdAsync(node)">⧉ id</button>
                 <button class="mini" title="Copy a shareable link to this node" @onclick="() => CopyLinkAsync(node)">⧉ link</button>

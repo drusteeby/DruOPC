@@ -1,0 +1,149 @@
+@implements IDisposable
+@inject UaAlarmList Alarms
+@inject UaConnection Connection
+@inject BrowserState State
+
+<div class="panel alarms-panel">
+    <div class="panel-header">
+        <span>
+            Alarms &amp; Conditions
+            @if (Alarms.IsActive)
+            {
+                <span class="live-badge">● live</span>
+            }
+            <span class="count-badge">@Alarms.Rows.Count</span>
+        </span>
+        <span class="header-controls">
+            @if (!Alarms.IsActive)
+            {
+                <button class="mini primary" title="Subscribe to conditions and replay retained alarms"
+                        @onclick="StartAsync" disabled="@(Connection.State != UaConnectionState.Connected)">Subscribe</button>
+            }
+            else
+            {
+                <button class="mini" title="ConditionRefresh: replay retained conditions" @onclick="RefreshAsync">⟳ refresh</button>
+                <button class="mini" title="Stop the condition subscription" @onclick="StopAsync">⏹</button>
+            }
+        </span>
+    </div>
+    <div class="panel-body">
+        @if (!Alarms.IsActive)
+        {
+            <div class="hint">Subscribe to see the server's active and unacknowledged conditions, and acknowledge them.</div>
+        }
+        else if (Alarms.Rows.Count == 0)
+        {
+            <div class="hint">No retained conditions.</div>
+        }
+        else
+        {
+            <table class="grid">
+                <thead>
+                    <tr><th></th><th>Severity</th><th>Source</th><th>Condition</th><th>Type</th><th>Message</th><th>Time</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Alarms.Rows)
+                    {
+                        <tr class="@(row.Active ? "alarm-active" : "")">
+                            <td title="@StateTitle(row)">
+                                <span class="alarm-state @(row.Active ? "on" : "off")">●</span>
+                                @if (!row.Acknowledged)
+                                {
+                                    <span class="alarm-unacked" title="Unacknowledged">!</span>
+                                }
+                            </td>
+                            <td class="sev sev-@SeverityBucket(row.Severity)">@row.Severity</td>
+                            <td>@row.SourceName</td>
+                            <td>@row.ConditionName</td>
+                            <td>@row.EventType</td>
+                            <td title="@row.Comment">@row.Message</td>
+                            <td class="mono dim">@row.Time</td>
+                            <td class="row-actions">
+                                @if (!row.Acknowledged && row.ConditionId is not null)
+                                {
+                                    <button class="mini" title="Acknowledge this condition" @onclick="() => AcknowledgeAsync(row)">✔ ack</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Alarms.Changed += OnChanged;
+        Connection.StateChanged += OnChanged;
+    }
+
+    private void OnChanged()
+        => _ = InvokeAsync(StateHasChanged);
+
+    private static string StateTitle(UaAlarmRow row)
+        => (row.Active ? "Active" : "Inactive") + (row.Acknowledged ? ", acknowledged" : ", unacknowledged");
+
+    private static string SeverityBucket(string severity)
+        => int.TryParse(severity, out int value)
+            ? value >= 700 ? "high" : value >= 400 ? "mid" : "low"
+            : "low";
+
+    private async Task StartAsync()
+    {
+        try
+        {
+            await Alarms.StartAsync();
+            State.Notify("Subscribed to alarms & conditions");
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Could not subscribe to conditions: {ex.Message}", isError: true);
+        }
+    }
+
+    private async Task StopAsync()
+    {
+        try
+        {
+            await Alarms.StopAsync();
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Could not stop the condition subscription: {ex.Message}", isError: true);
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            Alarms.Clear();
+            await Alarms.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"ConditionRefresh failed: {ex.Message}", isError: true);
+        }
+    }
+
+    private async Task AcknowledgeAsync(UaAlarmRow row)
+    {
+        try
+        {
+            await Alarms.AcknowledgeAsync(row, "Acknowledged via UaScope");
+            State.Notify($"Acknowledged {row.ConditionName}");
+        }
+        catch (Exception ex)
+        {
+            State.Notify($"Acknowledge failed: {ex.Message}", isError: true);
+        }
+    }
+
+    public void Dispose()
+    {
+        Alarms.Changed -= OnChanged;
+        Connection.StateChanged -= OnChanged;
+    }
+}
