@@ -8,6 +8,8 @@ on:
 permissions:
   contents: write
   packages: write
+  # Required for NuGet trusted publishing (OIDC).
+  id-token: write
 
 jobs:
   release:
@@ -78,16 +80,24 @@ jobs:
               -p:GeneratePackageOnBuild=false
           done
 
-      - name: Push NuGet package (when NUGET_API_KEY secret is set)
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      # Uses nuget.org Trusted Publishing: the workflow exchanges a GitHub
+      # OIDC token for a short-lived push key. Requires a trusted publishing
+      # policy on nuget.org for drusteeby/DruOPC + release.yml.
+      # continue-on-error: a NuGet hiccup must not sink the whole release.
+      - name: NuGet login (trusted publishing)
+        id: nuget_login
+        continue-on-error: true
+        uses: NuGet/login@v1
+        with:
+          user: drusteeby
+
+      - name: Push NuGet package
+        if: steps.nuget_login.outcome == 'success'
+        continue-on-error: true
         run: |
-          if [ -z "$NUGET_API_KEY" ]; then
-            echo "NUGET_API_KEY secret not set; skipping nuget.org publish."
-            exit 0
-          fi
           dotnet pack src -c Release -o nupkg
-          dotnet nuget push "nupkg/*.nupkg" --api-key "$NUGET_API_KEY" \
+          dotnet nuget push "nupkg/*.nupkg" \
+            --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}" \
             --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Create GitHub release
