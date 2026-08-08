@@ -1,0 +1,146 @@
+{
+  "Folder": "DemoLine",
+  "FolderList": [
+    {
+      "Folder": "Station10",
+      "NodeList": [
+        {
+          "NodeId": "St10_Handshake.ReadComplete",
+          "Name": "St10_Handshake.ReadComplete",
+          "DataType": "Boolean",
+          "ValueRank": -1,
+          "AccessLevel": "CurrentReadOrWrite",
+          "Description": "Station 10 read-complete handshake bit",
+          "NamespaceIndex": 3
+        },
+        {
+          "NodeId": "St10_Handshake.WriteComplete",
+          "Name": "St10_Handshake.WriteComplete",
+          "DataType": "Boolean",
+          "ValueRank": -1,
+          "AccessLevel": "CurrentReadOrWrite",
+          "Description": "Station 10 write-complete handshake bit",
+          "NamespaceIndex": 3
+        },
+        {
+          "NodeId": "St10_Recipe.UnitId",
+          "Name": "St10_Recipe.UnitId",
+          "DataType": "String",
+          "ValueRank": -1,
+          "AccessLevel": "CurrentReadOrWrite",
+          "Description": "Unit identifier written by the line controller",
+          "NamespaceIndex": 3,
+          "Value": ""
+        },
+        {
+          "NodeId": "St10_Recipe.PalletNumber",
+          "Name": "St10_Recipe.PalletNumber",
+          "DataType": "Int32",
+          "ValueRank": -1,
+          "AccessLevel": "CurrentReadOrWrite",
+          "Description": "Pallet number currently at station 10",
+          "NamespaceIndex": 3
+        }
+      ]
+    },
+    {
+      "Folder": "Station20",
+      "NodeList": [
+        {
+          "NodeId": "St20_Handshake.ReadComplete",
+          "Name": "St20_Handshake.ReadComplete",
+          "DataType": "Boolean",
+          "ValueRank": -1,
+          "AccessLevel": "CurrentReadOrWrite",
+          "Description": "Station 20 read-complete handshake bit",
+          "NamespaceIndex": 3
+        },
+        {
+          "NodeId": "St20_Handshake.WriteComplete",
+          "Name": "St20_Handshake.WriteComplete",
+          "DataType": "Boolean",
+          "ValueRank": -1,
+          "AccessLevel": "CurrentReadOrWrite",
+          "Description": "Station 20 write-complete handshake bit",
+          "NamespaceIndex": 3
+        },
+        {
+          "NodeId": "St20_Recipe.UnitId",
+          "Name": "St20_Recipe.UnitId",
+          "DataType": "String",
+          "ValueRank": -1,
+          "AccessLevel": "CurrentReadOrWrite",
+          "Description": "Unit identifier at station 20",
+          "NamespaceIndex": 3,
+          "Value": ""
+        },
+        {
+          "NodeId": "St20_Part.SerialNumber",
+          "Name": "St20_Part.SerialNumber",
+          "DataType": "String",
+          "ValueRank": -1,
+          "AccessLevel": "CurrentReadOrWrite",
+          "Description": "Serial number of the part in the fixture",
+          "NamespaceIndex": 3,
+          "Value": ""
+        }
+      ]
+    },
+    {
+      "Folder": "Station30",
+      "NodeList": [
+        {
+          "NodeId": "St30_Handshake.ReadComplete",
+          "Name": "St30_Handshake.ReadComplete",
+          "DataType": "Boolean",
+          "ValueRank": -1,
+          "AccessLevel": "CurrentReadOrWrite",
+          "Description": "Station 30 read-complete handshake bit",
+          "NamespaceIndex": 3
+        },
+        {
+          "NodeId": "St30_Inspect.TopAccept",
+          "Name": "St30_Inspect.TopAccept",
+          "DataType": "Boolean",
+          "ValueRank": -1,
+          "AccessLevel": "CurrentReadOrWrite",
+          "Description": "Top camera inspection accept flag",
+          "NamespaceIndex": 3
+        },
+        {
+          "NodeId": "St30_Inspect.BottomAccept",
+          "Name": "St30_Inspect.BottomAccept",
+          "DataType": "Boolean",
+          "ValueRank": -1,
+          "AccessLevel": "CurrentReadOrWrite",
+          "Description": "Bottom camera inspection accept flag",
+          "NamespaceIndex": 3
+        }
+      ]
+    },
+    {
+      "Folder": "Station40",
+      "NodeList": [
+        {
+          "NodeId": "St40_Handshake.ReadComplete",
+          "Name": "St40_Handshake.ReadComplete",
+          "DataType": "Boolean",
+          "ValueRank": -1,
+          "AccessLevel": "CurrentReadOrWrite",
+          "Description": "Station 40 read-complete handshake bit",
+          "NamespaceIndex": 3
+        },
+        {
+          "NodeId": "St40_Recipe.UnitId",
+          "Name": "St40_Recipe.UnitId",
+          "DataType": "String",
+          "ValueRank": -1,
+          "AccessLevel": "CurrentReadOrWrite",
+          "Description": "Unit identifier at station 40",
+          "NamespaceIndex": 3,
+          "Value": ""
+        }
+      ]
+    }
+  ]
+}
