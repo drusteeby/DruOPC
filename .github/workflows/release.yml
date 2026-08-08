@@ -15,6 +15,8 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      HAS_NUGET_KEY: ${{ secrets.NUGET_API_KEY != '' }}
 
     steps:
       - name: Checkout
@@ -80,24 +82,29 @@ jobs:
               -p:GeneratePackageOnBuild=false
           done
 
-      # Uses nuget.org Trusted Publishing: the workflow exchanges a GitHub
-      # OIDC token for a short-lived push key. Requires a trusted publishing
-      # policy on nuget.org for drusteeby/DruOPC + release.yml.
+      # NuGet publishing supports either mechanism, preferring the secret:
+      # - a NUGET_API_KEY secret (classic API key), or
+      # - nuget.org Trusted Publishing (OIDC policy for drusteeby/DruOPC
+      #   + release.yml), exchanged for a short-lived key via NuGet/login.
       # continue-on-error: a NuGet hiccup must not sink the whole release.
       - name: NuGet login (trusted publishing)
         id: nuget_login
+        if: ${{ env.HAS_NUGET_KEY != 'true' }}
         continue-on-error: true
         uses: NuGet/login@v1
         with:
           user: drusteeby
 
       - name: Push NuGet package
-        if: steps.nuget_login.outcome == 'success'
+        if: ${{ env.HAS_NUGET_KEY == 'true' || steps.nuget_login.outcome == 'success' }}
         continue-on-error: true
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
+          KEY="${NUGET_API_KEY:-${{ steps.nuget_login.outputs.NUGET_API_KEY }}}"
           dotnet pack src -c Release -o nupkg
           dotnet nuget push "nupkg/*.nupkg" \
-            --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}" \
+            --api-key "$KEY" \
             --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Create GitHub release
