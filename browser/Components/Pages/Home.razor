@@ -12,11 +12,11 @@
 @inject IJSRuntime Js
 @inject NavigationManager Navigation
 
-<PageTitle>UaScope – OPC UA Browser</PageTitle>
+<PageTitle>DruOPC – OPC UA Browser</PageTitle>
 
 <div class="app-shell">
     <header class="topbar">
-        <span class="brand">Ua<span class="brand-accent">Scope</span></span>
+        <span class="brand">Dru<span class="brand-accent">OPC</span></span>
 
         <input class="endpoint-input" placeholder="opc.tcp://localhost:50000" list="recent-servers"
                @bind="_endpointUrl" @bind:event="oninput"
@@ -377,7 +377,7 @@
 
         try
         {
-            _recentServers = await Js.InvokeAsync<string[]>("uascope.getRecentServers");
+            _recentServers = await Js.InvokeAsync<string[]>("druopc.getRecentServers");
             StateHasChanged();
         }
         catch (Exception)
@@ -492,8 +492,8 @@
 
             try
             {
-                await Js.InvokeVoidAsync("uascope.addRecentServer", _endpointUrl.Trim());
-                _recentServers = await Js.InvokeAsync<string[]>("uascope.getRecentServers");
+                await Js.InvokeVoidAsync("druopc.addRecentServer", _endpointUrl.Trim());
+                _recentServers = await Js.InvokeAsync<string[]>("druopc.getRecentServers");
             }
             catch (Exception)
             {

@@ -1,24 +1,25 @@
-# OPC PLC simulator + UaScope browser
+# DruOPC
 
-Two tools for learning, testing and demonstrating OPC UA:
+**DruOPC** is a two-piece toolkit for learning, testing and demonstrating
+OPC UA:
 
-- **OPC PLC simulator** (`src/`) — an OPC UA server that behaves like a PLC:
+- **DruOPC Simulator** (`src/`) — an OPC UA server that behaves like a PLC:
   changing values, anomalies, boilers, events, alarms, methods, and your own
   nodes from a JSON file. Everything is configured through `appsettings.json` —
   no command-line flags.
-- **UaScope** (`browser/`) — a web-based OPC UA client for browsing and
+- **DruOPC Browser** (`browser/`) — a web-based OPC UA client for browsing and
   inspecting *any* OPC UA server: live watch lists, writes, methods, events,
   alarms with acknowledge, history, UDT decoding, shareable deep links.
 
-They work great together (UaScope connects to the simulator out of the box) and
-separately (point UaScope at a real PLC; point any OPC UA client at the
+They work great together (the browser connects to the simulator out of the box)
+and separately (point the browser at a real PLC; point any OPC UA client at the
 simulator).
 
 > This is a fork of
 > [Azure-Samples/iot-edge-opc-plc](https://github.com/Azure-Samples/iot-edge-opc-plc)
 > with breaking changes: the command-line interface was replaced by
 > `appsettings.json` configuration, the host was rebuilt on the .NET generic
-> host, and UaScope was added. The upstream Docker images on MCR do **not**
+> host, and DruOPC was added. The upstream Docker images on MCR do **not**
 > match this fork.
 
 ## Quick start
@@ -26,13 +27,13 @@ simulator).
 Prerequisite: [.NET SDK](https://dotnet.microsoft.com/download) 10 or later.
 
 ```console
-git clone https://github.com/drusteeby/iot-edge-opc-plc.git
-cd iot-edge-opc-plc
+git clone https://github.com/drusteeby/DruOPC.git
+cd DruOPC
 
 # terminal 1 — the simulated PLC (OPC UA server on opc.tcp://localhost:50000)
 dotnet run --project src
 
-# terminal 2 — UaScope (web client on http://localhost:5080)
+# terminal 2 — DruOPC (web client on http://localhost:5080)
 dotnet run --project browser
 ```
 
@@ -48,11 +49,11 @@ with you writing values and acknowledging alarms.
 | Document | What it covers |
 |---|---|
 | [Getting started](docs/getting-started.md) | Zero to a live connection in 15 minutes; OPC UA primer; connecting to real PLCs |
-| [UaScope user manual](docs/user-manual.md) | Every UaScope feature, troubleshooting table, OPC UA glossary |
+| [DruOPC user manual](docs/user-manual.md) | Every DruOPC feature, troubleshooting table, OPC UA glossary |
 | [Configuration reference](#configuration) | Every simulator setting (below) |
 | [Deterministic alarms](deterministic-alarms.md) | Scripted alarm sequences for repeatable client testing |
 
-## UaScope in brief
+## DruOPC in brief
 
 - Endpoint discovery, security-mode selection, anonymous / username / X509 login
 - Per-certificate trust dialog (trust once / permanently); auto-accept off by default
@@ -112,7 +113,7 @@ Enabled through configuration (see [reference](#configuration)):
 | StopUpdateFastNodes / StartUpdateFastNodes | Pause/resume fast node updates |
 | HeaterOn / HeaterOff | Boiler #1 heater control |
 
-You can call all of these from UaScope's method dialog.
+You can call all of these from DruOPC's method dialog.
 
 ### Update limits
 
@@ -248,8 +249,8 @@ simulated — they hold whatever a client last wrote (unless the
 - `FolderList` nests folders recursively.
 
 The bundled [`src/nodesfile.json`](src/nodesfile.json) models a four-station
-assembly line (`DemoLine/Station10` … `DemoLine/Station60`); the TagWriter service animates the Station10
-station's handshake tags.
+demo line (`DemoLine/Station10` … `Station40`); the TagWriter service animates
+Station10's handshake tags.
 
 ## Running in a container
 
@@ -257,7 +258,7 @@ The project builds an OCI image with the .NET SDK (no Dockerfile needed):
 
 ```console
 dotnet publish src -c Release /t:PublishContainer
-docker run --rm -it -p 50000:50000 -p 8080:8080 iotedge/opc-plc
+docker run --rm -it -p 50000:50000 -p 8080:8080 druopc/simulator
 ```
 
 Configure it with environment variables
@@ -275,23 +276,22 @@ fixture and exercises it with a real OPC UA client — including alarm
 acknowledge round-trips.
 
 For your own projects, the build produces a NuGet package so you can embed the
-simulator in unit tests; see `samples/OpcPlcBase.cs` and `samples/README` files.
+simulator in unit tests; see [`tests/PlcSimulatorFixture.cs`](tests/PlcSimulatorFixture.cs) for how to host the simulator inside your own test project.
 
 ## Repository layout
 
 | Path | Contents |
 |---|---|
 | `src/` | The OPC PLC simulator (ASP.NET Core generic host) |
-| `browser/` | UaScope, the web OPC UA client (Blazor Server) |
+| `browser/` | DruOPC, the web OPC UA client (Blazor Server) |
 | `tests/` | Integration tests |
 | `docs/` | [Getting started](docs/getting-started.md), [user manual](docs/user-manual.md) |
-| `samples/` | Embedding the simulator in your own tests |
 
 ## Disclaimer
 
 The simulator is a development and test tool. It ships with well-known default
 passwords and permissive certificate handling; do not expose it to untrusted
-networks in that state. UaScope performs live writes and method calls on
+networks in that state. DruOPC performs live writes and method calls on
 whatever server it is pointed at — use appropriate care on production systems.
 
 ## Resources

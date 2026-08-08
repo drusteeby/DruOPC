@@ -1,4 +1,4 @@
-namespace UaScope.Services;
+namespace DruOpc.Services;
 
 using Opc.Ua;
 using Opc.Ua.Client;
@@ -61,7 +61,7 @@ public sealed class UaEventLog : IAsyncDisposable
 
             _subscription = new Subscription(session.DefaultSubscription)
             {
-                DisplayName = "UaScope events",
+                DisplayName = "DruOPC events",
                 PublishingInterval = 500,
                 KeepAliveCount = 10,
                 LifetimeCount = 1000,
@@ -184,7 +184,7 @@ public sealed class UaEventLog : IAsyncDisposable
         try
         {
             // The SDK cloned our subscription onto the recreated session; re-bind.
-            var clone = newSession.Subscriptions.FirstOrDefault(s => s.DisplayName == "UaScope events");
+            var clone = newSession.Subscriptions.FirstOrDefault(s => s.DisplayName == "DruOPC events");
             if (clone is not null)
             {
                 _subscription = clone;

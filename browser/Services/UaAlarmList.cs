@@ -1,4 +1,4 @@
-namespace UaScope.Services;
+namespace DruOpc.Services;
 
 using Opc.Ua;
 using Opc.Ua.Client;
@@ -46,7 +46,7 @@ public sealed class UaAlarmRow
 /// </summary>
 public sealed class UaAlarmList : IAsyncDisposable
 {
-    private const string SubscriptionName = "UaScope alarms";
+    private const string SubscriptionName = "DruOPC alarms";
 
     private readonly UaConnection _connection;
     private readonly ILogger<UaAlarmList> _logger;

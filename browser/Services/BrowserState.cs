@@ -1,4 +1,4 @@
-namespace UaScope.Services;
+namespace DruOpc.Services;
 
 using Opc.Ua;
 

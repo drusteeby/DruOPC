@@ -1,6 +1,6 @@
-# UaScope — web-based OPC UA browser
+# DruOpc — web-based OPC UA browser
 
-UaScope is a Blazor Server application for browsing and inspecting any OPC UA server
+DruOpc is a Blazor Server application for browsing and inspecting any OPC UA server
 from a web browser. It was built alongside the OPC PLC simulator in this repository,
 but works against any reachable OPC UA endpoint.
 
@@ -56,7 +56,7 @@ simulator). Enter any other endpoint URL to browse a different server.
 
 ## Client certificate
 
-On first run UaScope creates a self-signed client application certificate in
-`~/.local/share/UaScope/pki` (or the platform equivalent). Servers that enforce
+On first run DruOpc creates a self-signed client application certificate in
+`~/.local/share/DruOpc/pki` (or the platform equivalent). Servers that enforce
 client-certificate trust must trust that certificate before secure connections
 succeed.

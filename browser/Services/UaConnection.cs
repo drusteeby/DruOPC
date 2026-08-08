@@ -1,4 +1,4 @@
-namespace UaScope.Services;
+namespace DruOpc.Services;
 
 using Opc.Ua;
 using Opc.Ua.Client;
@@ -156,7 +156,7 @@ public sealed class UaConnection : IAsyncDisposable
                     configuredEndpoint,
                     updateBeforeConnect: false,
                     checkDomain: false,
-                    sessionName: $"UaScope {Environment.MachineName}",
+                    sessionName: $"DruOPC {Environment.MachineName}",
                     sessionTimeout: 60_000,
                     identity,
                     preferredLocales: null,

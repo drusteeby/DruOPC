@@ -1,6 +1,6 @@
 <Solution>
   <Folder Name="/browser/">
-    <Project Path="browser/UaScope.csproj" />
+    <Project Path="browser/DruOpc.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/opc-plc.csproj" />

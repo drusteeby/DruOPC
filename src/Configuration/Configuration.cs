@@ -233,13 +233,13 @@ public class TagWriterConfiguration
     /// </summary>
     public int WriteIntervalMs { get; set; } = 1_000;
 
-    public string ReadCompleteNodeId { get; set; } = "St10_Data.status.ReadComplete";
+    public string ReadCompleteNodeId { get; set; } = "St10_Handshake.ReadComplete";
 
-    public string WriteCompleteNodeId { get; set; } = "St10_Data.status.WriteComplete";
+    public string WriteCompleteNodeId { get; set; } = "St10_Handshake.WriteComplete";
 
-    public string UnitIdNodeId { get; set; } = "St10_Data.Header.UnitId.Data";
+    public string UnitIdNodeId { get; set; } = "St10_Recipe.UnitId";
 
-    public string PalletNumberNodeId { get; set; } = "St10_Data.Header.PalletNumber";
+    public string PalletNumberNodeId { get; set; } = "St10_Recipe.PalletNumber";
 }
 
 public class Boiler2Configuration

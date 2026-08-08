@@ -5,8 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
-    <RootNamespace>UaScope</RootNamespace>
-    <Description>UaScope - a web-based OPC UA address-space browser</Description>
+    <RootNamespace>DruOpc</RootNamespace>
+    <Description>DruOpc - a web-based OPC UA address-space browser</Description>
     <NoWarn>$(NoWarn);NU5104</NoWarn>
   </PropertyGroup>
 

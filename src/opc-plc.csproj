@@ -5,17 +5,17 @@
     <AssemblyName>opcplc</AssemblyName>
     <OutputType>Exe</OutputType>
     <IsPackable>true</IsPackable>
-    <PackageId>Microsoft.IoTEdge.OpcPlc</PackageId>
-    <Authors>Microsoft</Authors>
+    <PackageId>DruOPC.Simulator</PackageId>
+    <Authors>Dru Steeby and contributors</Authors>
     <Version>1.0.0</Version>
     <RootNamespace>OpcPlc</RootNamespace>
     <UserSecretsId>bdf7b209-fef3-44d4-9aba-17035fda5efd</UserSecretsId>
     <LangVersion>Preview</LangVersion>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Title>Microsoft IoT Edge OPC PLC server</Title>
-    <Product>Azure Industrial IoT OPC UA PLC Server</Product>
-    <Description>Implements an OPC-UA server with different nodes generating random data, anomalies and configuration of user defined nodes.</Description>
-    <RepositoryUrl>https://github.com/Azure-Samples/iot-edge-opc-plc</RepositoryUrl>
+    <Title>DruOPC Simulator</Title>
+    <Product>DruOPC</Product>
+    <Description>OPC UA server that behaves like a PLC: simulated values, anomalies, boilers, events, alarms, methods and user-defined nodes. Part of the DruOPC toolkit; based on Azure-Samples/iot-edge-opc-plc.</Description>
+    <RepositoryUrl>https://github.com/drusteeby/DruOPC</RepositoryUrl>
     <PackageOutputPath>$(OutputPath)</PackageOutputPath>
     <PackageIcon>icon.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -26,7 +26,7 @@
     <NoWarn>$(NoWarn);CA1873</NoWarn>
   </PropertyGroup>
   <PropertyGroup>
-    <ContainerRepository>iotedge/opc-plc</ContainerRepository>
+    <ContainerRepository>druopc/simulator</ContainerRepository>
     <ContainerUser>root</ContainerUser>
     <ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:10.0-azurelinux3.0-distroless</ContainerBaseImage>
   </PropertyGroup>
@@ -107,7 +107,7 @@
     <Content Include="appsettings.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="Microsoft.IoTEdge.OpcPlc.targets" PackagePath="build/Microsoft.IoTEdge.OpcPlc.targets" />
+    <Content Include="DruOPC.Simulator.targets" PackagePath="build/DruOPC.Simulator.targets" />
     <Content Include="Boilers/**/*.*">
       <PackagePath>contentFiles\Boilers</PackagePath>
     </Content>

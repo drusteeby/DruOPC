@@ -134,8 +134,8 @@
                 Csv(e.SourceName), Csv(e.EventType), Csv(e.Message)));
         }
 
-        await Js.InvokeVoidAsync("uascope.downloadFile",
-            $"uascope-events-{DateTime.Now:yyyyMMdd-HHmmss}.csv", "text/csv", sb.ToString());
+        await Js.InvokeVoidAsync("druopc.downloadFile",
+            $"druopc-events-{DateTime.Now:yyyyMMdd-HHmmss}.csv", "text/csv", sb.ToString());
     }
 
     private static string Csv(string value)

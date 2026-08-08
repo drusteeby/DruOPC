@@ -10,7 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 /// <summary>
-/// Tests the alarms &amp; conditions client workflow used by UaScope:
+/// Tests the alarms &amp; conditions client workflow used by the DruOPC browser:
 /// condition subscription, ConditionRefresh and Acknowledge.
 /// </summary>
 [TestFixture]

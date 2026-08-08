@@ -1,4 +1,4 @@
-namespace UaScope.Services;
+namespace DruOpc.Services;
 
 using Opc.Ua;
 using Opc.Ua.Client;
@@ -9,7 +9,7 @@ using Opc.Ua.Client;
 /// </summary>
 public sealed class UaWatchList : IAsyncDisposable
 {
-    private const string SubscriptionName = "UaScope watch list";
+    private const string SubscriptionName = "DruOPC watch list";
 
     private readonly UaConnection _connection;
     private readonly UaBrowserService _browser;

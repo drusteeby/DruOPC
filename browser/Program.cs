@@ -1,5 +1,5 @@
-using UaScope.Components;
-using UaScope.Services;
+using DruOpc.Components;
+using DruOpc.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 

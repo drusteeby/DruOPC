@@ -242,7 +242,7 @@
     {
         try
         {
-            await Js.InvokeAsync<bool>("uascope.copyText", text);
+            await Js.InvokeAsync<bool>("druopc.copyText", text);
             State.Notify("Copied value");
         }
         catch (Exception)
@@ -261,8 +261,8 @@
                 Csv(item.DataType), Csv(item.SourceTimestamp), Csv(item.ServerTimestamp), Csv(item.StatusCode)));
         }
 
-        await Js.InvokeVoidAsync("uascope.downloadFile",
-            $"uascope-watch-{DateTime.Now:yyyyMMdd-HHmmss}.csv", "text/csv", sb.ToString());
+        await Js.InvokeVoidAsync("druopc.downloadFile",
+            $"druopc-watch-{DateTime.Now:yyyyMMdd-HHmmss}.csv", "text/csv", sb.ToString());
     }
 
     private static string Csv(string value)

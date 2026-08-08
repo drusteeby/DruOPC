@@ -107,7 +107,7 @@
         // which may differ from this server's timezone.
         try
         {
-            _browserUtcOffsetMinutes = await Js.InvokeAsync<int>("uascope.timezoneOffsetMinutes");
+            _browserUtcOffsetMinutes = await Js.InvokeAsync<int>("druopc.timezoneOffsetMinutes");
         }
         catch (Exception)
         {
@@ -210,8 +210,8 @@
               .Append(point.StatusText).Append('\n');
         }
 
-        await Js.InvokeVoidAsync("uascope.downloadFile",
-            $"uascope-history-{DateTime.Now:yyyyMMdd-HHmmss}.csv", "text/csv", sb.ToString());
+        await Js.InvokeVoidAsync("druopc.downloadFile",
+            $"druopc-history-{DateTime.Now:yyyyMMdd-HHmmss}.csv", "text/csv", sb.ToString());
     }
 
     private static string Csv(string value)

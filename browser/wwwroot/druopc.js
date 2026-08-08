@@ -1,4 +1,4 @@
-window.uascope = {
+window.druopc = {
     copyText: async function (text) {
         try {
             await navigator.clipboard.writeText(text);
@@ -32,7 +32,7 @@ window.uascope = {
 
     getRecentServers: function () {
         try {
-            return JSON.parse(localStorage.getItem("uascope.recentServers") || "[]");
+            return JSON.parse(localStorage.getItem("druopc.recentServers") || "[]");
         } catch {
             return [];
         }
@@ -49,9 +49,9 @@ window.uascope = {
 
     addRecentServer: function (url) {
         try {
-            let list = JSON.parse(localStorage.getItem("uascope.recentServers") || "[]");
+            let list = JSON.parse(localStorage.getItem("druopc.recentServers") || "[]");
             list = [url, ...list.filter(u => u !== url)].slice(0, 8);
-            localStorage.setItem("uascope.recentServers", JSON.stringify(list));
+            localStorage.setItem("druopc.recentServers", JSON.stringify(list));
         } catch { }
     }
 };

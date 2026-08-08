@@ -1,4 +1,4 @@
-namespace UaScope.Services;
+namespace DruOpc.Services;
 
 using Opc.Ua;
 using Opc.Ua.Configuration;
@@ -19,7 +19,7 @@ public sealed class UaApplicationProvider
     /// </summary>
     public static string PkiRoot { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "UaScope",
+        "DruOPC",
         "pki");
 
     /// <summary>
@@ -29,9 +29,9 @@ public sealed class UaApplicationProvider
     {
         var config = new ApplicationConfiguration
         {
-            ApplicationName = "UaScope",
-            ApplicationUri = $"urn:{Utils.GetHostName()}:UaScope",
-            ProductUri = "urn:uascope:opcua:browser",
+            ApplicationName = "DruOPC",
+            ApplicationUri = $"urn:{Utils.GetHostName()}:DruOPC",
+            ProductUri = "urn:druopc:opcua:browser",
             ApplicationType = ApplicationType.Client,
             SecurityConfiguration = new SecurityConfiguration
             {
@@ -39,7 +39,7 @@ public sealed class UaApplicationProvider
                 {
                     StoreType = CertificateStoreType.Directory,
                     StorePath = Path.Combine(PkiRoot, "own"),
-                    SubjectName = $"CN=UaScope, DC={Utils.GetHostName()}",
+                    SubjectName = $"CN=DruOPC, DC={Utils.GetHostName()}",
                 },
                 TrustedIssuerCertificates = new CertificateTrustList
                 {
@@ -110,7 +110,7 @@ public sealed class UaApplicationProvider
             bool haveCertificate = await application.CheckApplicationInstanceCertificates(silent: true).ConfigureAwait(false);
             if (!haveCertificate)
             {
-                throw new InvalidOperationException("Could not create or load the UaScope client application certificate.");
+                throw new InvalidOperationException("Could not create or load the DruOPC client application certificate.");
             }
 
             _certificateChecked = true;

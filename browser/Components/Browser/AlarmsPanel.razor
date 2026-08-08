@@ -132,13 +132,13 @@
         }
     }
 
-    private string _ackComment = "Acknowledged via UaScope";
+    private string _ackComment = "Acknowledged via DruOPC";
 
     private async Task AcknowledgeAsync(UaAlarmRow row)
     {
         try
         {
-            await Alarms.AcknowledgeAsync(row, string.IsNullOrWhiteSpace(_ackComment) ? "Acknowledged via UaScope" : _ackComment);
+            await Alarms.AcknowledgeAsync(row, string.IsNullOrWhiteSpace(_ackComment) ? "Acknowledged via DruOPC" : _ackComment);
             State.Notify($"Acknowledged {row.ConditionName}");
         }
         catch (Exception ex)

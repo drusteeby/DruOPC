@@ -170,7 +170,7 @@
     {
         try
         {
-            await Js.InvokeAsync<bool>("uascope.copyText", _rawText);
+            await Js.InvokeAsync<bool>("druopc.copyText", _rawText);
             State.Notify("Copied value");
         }
         catch (Exception)
