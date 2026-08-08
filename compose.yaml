@@ -1,0 +1,28 @@
+# DruOPC: simulator + browser.
+#   docker compose up
+# then open http://localhost:5080 and connect to opc.tcp://simulator:50000
+
+services:
+  simulator:
+    image: ghcr.io/drusteeby/druopc-simulator:latest
+    ports:
+      - "50000:50000" # OPC UA endpoint
+      - "8080:8080"   # pn.json web server
+    environment:
+      # The hostname other containers (and certificates) see.
+      OpcPlc__OpcUa__Hostname: simulator
+      # Enable optional simulations, e.g.:
+      # OpcPlc__Simulation__AddAlarmSimulation: "true"
+    volumes:
+      # Keep the server certificate stable across restarts.
+      - simulator-pki:/app/pki
+
+  browser:
+    image: ghcr.io/drusteeby/druopc-browser:latest
+    ports:
+      - "5080:8080" # the browser listens on 8080 inside the container
+    depends_on:
+      - simulator
+
+volumes:
+  simulator-pki:

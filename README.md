@@ -255,18 +255,47 @@ The bundled [`src/nodesfile.json`](src/nodesfile.json) models a four-station
 demo line (`DemoLine/Station10` … `Station40`); the TagWriter service animates
 Station10's handshake tags.
 
-## Running in a container
+## Running in Docker
 
-The project builds an OCI image with the .NET SDK (no Dockerfile needed):
+Every release publishes container images to GitHub Container Registry. The
+easiest way to run the whole toolkit:
 
 ```console
-dotnet publish src -c Release /t:PublishContainer
-docker run --rm -it -p 50000:50000 -p 8080:8080 druopc/simulator
+curl -O https://raw.githubusercontent.com/drusteeby/DruOPC/main/compose.yaml
+docker compose up
 ```
 
-Configure it with environment variables
-(`-e OpcPlc__Simulation__AddAlarmSimulation=true`) and persist certificates with
-`-v <host-pki-dir>:/app/pki`.
+Then open <http://localhost:5080> and connect to `opc.tcp://simulator:50000`
+(the simulator's name on the compose network).
+
+Or run the pieces individually:
+
+```console
+# The simulator (OPC UA on 50000)
+docker run --rm -it -p 50000:50000 -p 8080:8080 \
+  -e OpcPlc__Simulation__AddAlarmSimulation=true \
+  -v druopc-pki:/app/pki \
+  ghcr.io/drusteeby/druopc-simulator:latest
+
+# The browser (web UI on http://localhost:5080)
+docker run --rm -it -p 5080:8080 ghcr.io/drusteeby/druopc-browser:latest
+```
+
+Any `OpcPlc__*` environment variable from the
+[configuration reference](#configuration) works with `-e`; mounting `/app/pki`
+keeps the server certificate stable across restarts. To build an image locally
+instead of pulling, the SDK does it without a Dockerfile:
+`dotnet publish src -c Release /t:PublishContainer`.
+
+## Installing from package managers
+
+- **Snap (Linux)**: `sudo snap install druopc`, then `druopc.simulator` and
+  `druopc.browser`.
+- **NuGet**: the `DruOPC.Simulator` package lets you embed the simulator in
+  your own test projects (see [Testing](#testing)).
+- Windows and macOS: download the self-contained archives from the
+  [releases page](https://github.com/drusteeby/DruOPC/releases) — no .NET
+  install required.
 
 ## Testing
 
