@@ -1,5 +1,6 @@
 @using Opc.Ua
 @using System.Text.Json
+@implements IDisposable
 @inject UaBrowserService Browser
 @inject BrowserState State
 @inject IJSRuntime Js
@@ -98,15 +99,23 @@
     {
         // Structures render as an expandable JSON tree; everything else as
         // full, untruncated text.
+        const int maxArrayElements = 500;
+
         string json = value switch
         {
             IEncodeable encodeable => UaFormat.EncodeToJson(encodeable),
             ExtensionObject { Body: IEncodeable body } => UaFormat.EncodeToJson(body),
             ExtensionObject[] extensions => "[" + string.Join(",", extensions
+                .Take(maxArrayElements)
                 .Select(e => e.Body is IEncodeable body ? UaFormat.EncodeToJson(body) : "null")
                 .Select(s => s.Length == 0 ? "null" : s)) + "]",
             _ => "",
         };
+
+        if (value is ExtensionObject[] { Length: > maxArrayElements } bigArray)
+        {
+            _meta += $" | showing first {maxArrayElements} of {bigArray.Length} elements";
+        }
 
         if (json.Length > 0)
         {
@@ -128,10 +137,33 @@
             string s => s,
             byte[] bytes => Convert.ToHexString(bytes.AsSpan(0, Math.Min(bytes.Length, 65_536)))
                 + (bytes.Length > 65_536 ? $"… ({bytes.Length} bytes)" : $" ({bytes.Length} bytes)"),
-            System.Collections.IEnumerable enumerable and not string =>
-                string.Join(Environment.NewLine, enumerable.Cast<object?>().Select((v, i) => $"[{i}] {UaFormat.FormatValue(v)}")),
+            System.Collections.IEnumerable enumerable and not string => FormatEnumerable(enumerable),
             _ => UaFormat.FormatValue(value),
         };
+    }
+
+    private static string FormatEnumerable(System.Collections.IEnumerable enumerable)
+    {
+        const int maxLines = 2000;
+        var lines = new List<string>();
+        int total = 0;
+
+        foreach (var item in enumerable)
+        {
+            if (total < maxLines)
+            {
+                lines.Add($"[{total}] {UaFormat.FormatValue(item)}");
+            }
+
+            total++;
+        }
+
+        if (total > maxLines)
+        {
+            lines.Add($"… {total - maxLines} more element(s) not shown");
+        }
+
+        return string.Join(Environment.NewLine, lines);
     }
 
     private async Task CopyAsync()
@@ -153,5 +185,11 @@
         _json?.Dispose();
         _json = null;
         StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _json?.Dispose();
+        _json = null;
     }
 }

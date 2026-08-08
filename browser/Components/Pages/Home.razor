@@ -7,6 +7,7 @@
 @inject UaBrowserService Browser
 @inject UaWatchList WatchList
 @inject UaEventLog EventLog
+@inject UaAlarmList Alarms
 @inject BrowserState State
 @inject IJSRuntime Js
 @inject NavigationManager Navigation
@@ -126,7 +127,7 @@
             <span class="sep">|</span>
             <button class="link" @onclick="() => _showNamespaces = true">@info.Namespaces.Length namespaces</button>
             <span class="sep">|</span>
-            <button class="link" @onclick="() => _showSubscriptions = true">@(Connection.Session?.Subscriptions?.Count() ?? 0) subscriptions</button>
+            <button class="link" @onclick="OpenSubscriptions">@(Connection.Session?.SubscriptionCount ?? 0) subscriptions</button>
             @if (!string.IsNullOrEmpty(info.ServerCertificateThumbprint))
             {
                 <span class="sep">|</span>
@@ -145,7 +146,7 @@
 <ValueInspectorDialog @ref="_valueInspector" />
 
 @* Subscription inspector dialog *@
-@if (_showSubscriptions && Connection.Session is { } activeSession)
+@if (_showSubscriptions)
 {
     <div class="modal-backdrop" @onclick="() => _showSubscriptions = false">
         <div class="modal wide" @onclick:stopPropagation="true">
@@ -154,7 +155,7 @@
                 <button class="mini" @onclick="() => _showSubscriptions = false">✖</button>
             </div>
             <div class="modal-body">
-                @if (!activeSession.Subscriptions.Any())
+                @if (_subscriptionSnapshot.Count == 0)
                 {
                     <div class="hint">No active subscriptions in this session.</div>
                 }
@@ -165,7 +166,7 @@
                             <tr><th>Id</th><th>Name</th><th>Publishing interval</th><th>Keep-alive</th><th>Lifetime</th><th>Items</th><th>Enabled</th></tr>
                         </thead>
                         <tbody>
-                            @foreach (var sub in activeSession.Subscriptions)
+                            @foreach (var sub in _subscriptionSnapshot)
                             {
                                 <tr>
                                     <td class="mono">@sub.Id</td>
@@ -329,6 +330,23 @@
     private string[] _recentServers = [];
     private string? _deepLinkNode;
     private bool _deepLinkConnect;
+    private List<Opc.Ua.Client.Subscription> _subscriptionSnapshot = [];
+
+    private void OpenSubscriptions()
+    {
+        // The SDK mutates its subscription list from background threads;
+        // snapshot it once instead of enumerating the live collection in render.
+        try
+        {
+            _subscriptionSnapshot = Connection.Session?.Subscriptions?.ToList() ?? [];
+        }
+        catch (InvalidOperationException)
+        {
+            _subscriptionSnapshot = [];
+        }
+
+        _showSubscriptions = true;
+    }
 
     private readonly List<Toast> _toasts = [];
 
@@ -548,6 +566,7 @@
         {
             await WatchList.ClearAsync();
             await EventLog.StopAsync();
+            await Alarms.StopAsync();
             await Connection.DisconnectAsync();
             _tree?.Clear();
         }

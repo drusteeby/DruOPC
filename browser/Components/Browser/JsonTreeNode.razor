@@ -20,6 +20,12 @@ else if (Element.ValueKind is JsonValueKind.Array)
             @{ int index = 0; }
             @foreach (var item in Element.EnumerateArray())
             {
+                if (index >= MaxChildren)
+                {
+                    <div class="json-leaf dim">… @(Element.GetArrayLength() - MaxChildren) more element(s) not shown</div>
+                    break;
+                }
+
                 <JsonTreeNode Element="item" Label="@($"[{index}]")" Depth="Depth + 1" />
                 index++;
             }
@@ -35,6 +41,8 @@ else
 }
 
 @code {
+    private const int MaxChildren = 200;
+
     [Parameter, EditorRequired] public JsonElement Element { get; set; }
 
     [Parameter] public string? Label { get; set; }

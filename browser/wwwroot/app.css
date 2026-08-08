@@ -405,6 +405,7 @@ table.grid tr.bad td { color: var(--bad); }
 }
 
 /* events */
+.ack-comment { width: 160px; font-size: 12px; padding: 1px 6px; }
 .sev { font-weight: 600; }
 .sev-high { color: var(--bad); }
 .sev-mid { color: var(--warn); }

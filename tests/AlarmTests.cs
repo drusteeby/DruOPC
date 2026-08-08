@@ -4,6 +4,7 @@ using FluentAssertions;
 using NUnit.Framework;
 using Opc.Ua;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 [TestFixture]
@@ -47,8 +48,11 @@ public class AlarmTests : SubscriptionTestsBase
     [Test]
     public void AlarmEventSubscribed_FiresNotification()
     {
-        // Assert
-        var events = ReceiveEventsAsDictionary(1);
+        // Assert: at least one matching event; the deterministic heartbeat
+        // may deliver more than one within the wait window.
+        var events = ReceiveAtMostEvents(1)
+            .Select(a => (EventFieldList)a.NotificationValue)
+            .Select(EventFieldListToDictionary);
         foreach (var value in events)
         {
             value.Should().Contain(new Dictionary<string, object> {

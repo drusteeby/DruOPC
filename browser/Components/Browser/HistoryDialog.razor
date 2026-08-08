@@ -51,14 +51,13 @@
                         <table class="grid">
                             <thead><tr><th>Source time</th><th>Value</th><th>Status</th></tr></thead>
                             <tbody>
-                                @foreach (var point in _points)
-                                {
+                                <Virtualize Items="_points" Context="point" ItemSize="24">
                                     <tr class="@(point.IsBad ? "bad" : "")">
-                                        <td class="mono dim">@point.SourceTimestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff")</td>
+                                        <td class="mono dim">@ToBrowserTime(point.SourceTimestamp).ToString("yyyy-MM-dd HH:mm:ss.fff")</td>
                                         <td class="mono">@point.ValueText</td>
                                         <td>@point.StatusText</td>
                                     </tr>
-                                }
+                                </Virtualize>
                             </tbody>
                         </table>
                     </div>
@@ -88,6 +87,8 @@
     private double _chartMin;
     private double _chartMax;
 
+    private int _browserUtcOffsetMinutes;
+
     public void Open(NodeId nodeId, string nodeName)
     {
         _visible = true;
@@ -97,10 +98,33 @@
         _chartPoints = null;
         _error = "";
         _hasRead = false;
-        _start = DateTime.Now.AddHours(-1);
-        _end = DateTime.Now;
+        _ = InvokeAsync(InitializeTimesAsync);
+    }
+
+    private async Task InitializeTimesAsync()
+    {
+        // Times entered/shown in the dialog are the BROWSER's wall time,
+        // which may differ from this server's timezone.
+        try
+        {
+            _browserUtcOffsetMinutes = await Js.InvokeAsync<int>("uascope.timezoneOffsetMinutes");
+        }
+        catch (Exception)
+        {
+            _browserUtcOffsetMinutes = 0;
+        }
+
+        var browserNow = ToBrowserTime(DateTime.UtcNow);
+        _start = browserNow.AddHours(-1);
+        _end = browserNow;
         StateHasChanged();
     }
+
+    private DateTime ToUtc(DateTime browserWallTime)
+        => DateTime.SpecifyKind(browserWallTime.AddMinutes(_browserUtcOffsetMinutes), DateTimeKind.Utc);
+
+    private DateTime ToBrowserTime(DateTime utc)
+        => DateTime.SpecifyKind(utc.AddMinutes(-_browserUtcOffsetMinutes), DateTimeKind.Unspecified);
 
     private async Task ReadAsync()
     {
@@ -117,8 +141,8 @@
         {
             _points = await History.ReadRawAsync(
                 _nodeId,
-                _start.ToUniversalTime(),
-                _end.ToUniversalTime(),
+                ToUtc(_start),
+                ToUtc(_end),
                 _maxPoints);
             _hasRead = true;
             BuildChart();
@@ -148,6 +172,7 @@
         var numeric = _points
             .Where(p => !p.IsBad && p.Value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal or bool)
             .Select(p => (p.SourceTimestamp, Value: p.Value is bool b ? (b ? 1d : 0d) : Convert.ToDouble(p.Value)))
+            .Where(p => double.IsFinite(p.Value))
             .ToList();
 
         if (numeric.Count < 2)
@@ -180,15 +205,19 @@
         var sb = new StringBuilder("SourceTimestamp,Value,Status\n");
         foreach (var point in _points)
         {
-            string value = point.ValueText.Contains(',') || point.ValueText.Contains('"')
-                ? $"\"{point.ValueText.Replace("\"", "\"\"")}\""
-                : point.ValueText;
-            sb.AppendLine($"{point.SourceTimestamp:o},{value},{point.StatusText}");
+            sb.Append(point.SourceTimestamp.ToString("o")).Append(',')
+              .Append(Csv(point.ValueText)).Append(',')
+              .Append(point.StatusText).Append('\n');
         }
 
         await Js.InvokeVoidAsync("uascope.downloadFile",
             $"uascope-history-{DateTime.Now:yyyyMMdd-HHmmss}.csv", "text/csv", sb.ToString());
     }
+
+    private static string Csv(string value)
+        => value.Contains(',') || value.Contains('"') || value.Contains('\n')
+            ? $"\"{value.Replace("\"", "\"\"")}\""
+            : value;
 
     private void Close()
     {

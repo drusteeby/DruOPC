@@ -49,8 +49,7 @@
                     <tr><th>Time</th><th>Severity</th><th>Source</th><th>Type</th><th>Message</th></tr>
                 </thead>
                 <tbody>
-                    @foreach (var e in EventLog.Events)
-                    {
+                    <Virtualize Items="@((ICollection<UaEventRow>)EventLog.Events)" Context="e" ItemSize="24">
                         <tr>
                             <td class="mono dim">@e.Time</td>
                             <td class="sev sev-@SeverityBucket(e.Severity)">@e.Severity</td>
@@ -58,7 +57,7 @@
                             <td>@e.EventType</td>
                             <td>@e.Message</td>
                         </tr>
-                    }
+                    </Virtualize>
                 </tbody>
             </table>
         }

@@ -32,10 +32,19 @@ using System.Timers;
 public class PlcSimulatorFixture
 {
     /// <summary>
-    /// Port on which to run the simulator. Using a non-standard port so that
-    /// developers can simultaneously run the simulator process.
+    /// Port on which to run the simulator. A free ephemeral port is picked per
+    /// fixture so consecutive fixtures don't collide on TIME_WAIT sockets.
     /// </summary>
-    private const int Port = 50001;
+    private readonly int Port = GetFreePort();
+
+    private static int GetFreePort()
+    {
+        var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
 
     private readonly string[] _configOverrides;
 

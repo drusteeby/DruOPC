@@ -14,6 +14,10 @@
             <span class="count-badge">@Alarms.Rows.Count</span>
         </span>
         <span class="header-controls">
+            @if (Alarms.IsActive)
+            {
+                <input class="ack-comment" placeholder="ack comment" title="Comment sent with acknowledgements" @bind="_ackComment" />
+            }
             @if (!Alarms.IsActive)
             {
                 <button class="mini primary" title="Subscribe to conditions and replay retained alarms"
@@ -128,11 +132,13 @@
         }
     }
 
+    private string _ackComment = "Acknowledged via UaScope";
+
     private async Task AcknowledgeAsync(UaAlarmRow row)
     {
         try
         {
-            await Alarms.AcknowledgeAsync(row, "Acknowledged via UaScope");
+            await Alarms.AcknowledgeAsync(row, string.IsNullOrWhiteSpace(_ackComment) ? "Acknowledged via UaScope" : _ackComment);
             State.Notify($"Acknowledged {row.ConditionName}");
         }
         catch (Exception ex)

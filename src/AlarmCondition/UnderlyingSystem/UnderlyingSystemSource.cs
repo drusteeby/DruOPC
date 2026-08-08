@@ -571,24 +571,30 @@ public class UnderlyingSystemSource
     /// </summary>
     internal bool TriggerSnapshot(string reason)
     {
-        UnderlyingSystemAlarm snapshot = null;
+        // Snapshot every alarm of the source so each alarm type (including
+        // TripAlarm) emits deterministically on the source's heartbeat turn.
+        var snapshots = new List<UnderlyingSystemAlarm>();
         lock (m_alarms)
         {
             if (m_alarms.Count == 0)
             {
                 return false;
             }
-            var alarm = m_alarms[0];
-            alarm.Time = DateTime.UtcNow;
-            alarm.Reason = reason;
-            snapshot = alarm.CreateSnapshot();
+
+            foreach (var alarm in m_alarms)
+            {
+                alarm.Time = DateTime.UtcNow;
+                alarm.Reason = reason;
+                snapshots.Add(alarm.CreateSnapshot());
+            }
         }
-        if (snapshot != null)
+
+        foreach (var snapshot in snapshots)
         {
             ReportAlarmChange(snapshot);
-            return true;
         }
-        return false;
+
+        return snapshots.Count > 0;
     }
     #endregion
 

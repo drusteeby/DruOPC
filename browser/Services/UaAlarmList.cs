@@ -287,6 +287,8 @@ public sealed class UaAlarmList : IAsyncDisposable
 
     private void OnSessionReplaced(Session newSession)
     {
+        bool rebound = false;
+
         _lock.Wait();
         try
         {
@@ -295,12 +297,32 @@ public sealed class UaAlarmList : IAsyncDisposable
             {
                 _subscription = clone;
                 _monitoredItem = clone.MonitoredItems.FirstOrDefault();
+                rebound = true;
                 _logger.LogInformation("Alarm subscription re-bound to recreated session");
             }
         }
         finally
         {
             _lock.Release();
+        }
+
+        if (rebound)
+        {
+            // Rows carry pre-outage event ids (acknowledge would fail) and
+            // conditions cleared during the outage would linger; rebuild the
+            // list from a fresh ConditionRefresh.
+            Clear();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await RefreshAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "ConditionRefresh after reconnect failed");
+                }
+            });
         }
     }
 

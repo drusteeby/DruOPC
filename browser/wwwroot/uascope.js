@@ -38,6 +38,11 @@ window.uascope = {
         }
     },
 
+    timezoneOffsetMinutes: function () {
+        // Minutes to ADD to browser-local wall time to get UTC.
+        return new Date().getTimezoneOffset();
+    },
+
     scrollToSelected: function () {
         document.querySelector(".tree-row.selected")?.scrollIntoView({ block: "center", behavior: "smooth" });
     },

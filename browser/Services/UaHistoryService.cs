@@ -40,7 +40,6 @@ public sealed class UaHistoryService
         {
             StartTime = startTimeUtc,
             EndTime = endTimeUtc,
-            NumValuesPerNode = (uint)Math.Min(maxPoints, 2_000),
             IsReadModified = false,
             ReturnBounds = false,
         };
@@ -50,6 +49,8 @@ public sealed class UaHistoryService
         while (points.Count < maxPoints)
         {
             ct.ThrowIfCancellationRequested();
+
+            details.NumValuesPerNode = (uint)Math.Min(maxPoints - points.Count, 2_000);
 
             var response = await Session.HistoryReadAsync(
                 requestHeader: null,
