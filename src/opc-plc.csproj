@@ -83,23 +83,17 @@
   </Choose>
 
   <ItemGroup>
-    <None Update="Boilers\Boiler1\BoilerModel1.PredefinedNodes.uanodes">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Boilers\Boiler2\BoilerModel2.PredefinedNodes.uanodes">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="CompanionSpecs\DI\Opc.Ua.DI.PredefinedNodes.uanodes">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <!-- Compiled information models, embedded so no filesystem layout is assumed at runtime.
+         LogicalName is the resource name the loaders pass to LoadFromBinaryResource. -->
+    <EmbeddedResource Include="Boilers\Boiler1\BoilerModel1.PredefinedNodes.uanodes" LogicalName="BoilerModel1" />
+    <EmbeddedResource Include="Boilers\Boiler2\BoilerModel2.PredefinedNodes.uanodes" LogicalName="BoilerModel2" />
+    <EmbeddedResource Include="CompanionSpecs\DI\Opc.Ua.DI.PredefinedNodes.uanodes" LogicalName="OpcUaDi" />
+    <EmbeddedResource Include="SimpleEvent\SimpleEvents.PredefinedNodes.uanodes" LogicalName="SimpleEvents" />
     <None Update="nodesfile.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="opcplc.service">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="SimpleEvent\SimpleEvents.PredefinedNodes.uanodes">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 

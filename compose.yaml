@@ -7,7 +7,7 @@ services:
     image: ghcr.io/drusteeby/druopc-simulator:latest
     ports:
       - "50000:50000" # OPC UA endpoint
-      - "8080:8080"   # pn.json web server
+      - "5840:8080"   # pn.json web server (host port off 8080 to avoid the most common dev-port conflict)
     environment:
       # The hostname other containers (and certificates) see.
       OpcPlc__OpcUa__Hostname: simulator
