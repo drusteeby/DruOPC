@@ -86,7 +86,7 @@ public class ComplexTypeBoilerPluginNode(TimeService timeService, ILogger logger
     /// </summary>
     private static NodeStateCollection LoadPredefinedNodes(ISystemContext context)
     {
-        var uanodesPath = "Boilers/Boiler1/BoilerModel1.PredefinedNodes.uanodes"; // embedded resource, LogicalName in opc-plc.csproj
+        var uanodesPath = "BoilerModel1"; // embedded resource, LogicalName in opc-plc.csproj
 
         var predefinedNodes = new NodeStateCollection();
 

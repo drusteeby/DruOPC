@@ -88,7 +88,7 @@ public sealed class SimpleEventsNodeManager : CustomNodeManager2
     /// </summary>
     protected override NodeStateCollection LoadPredefinedNodes(ISystemContext context)
     {
-        var uanodesPath = "SimpleEvent/SimpleEvents.PredefinedNodes.uanodes"; // embedded resource, LogicalName in opc-plc.csproj
+        var uanodesPath = "SimpleEvents"; // embedded resource, LogicalName in opc-plc.csproj
 
         var predefinedNodes = new NodeStateCollection();
         predefinedNodes.LoadFromBinaryResource(context,

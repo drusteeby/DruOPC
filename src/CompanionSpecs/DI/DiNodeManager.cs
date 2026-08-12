@@ -30,7 +30,7 @@ public sealed class DiNodeManager : CustomNodeManager2
     /// </summary>
     protected override NodeStateCollection LoadPredefinedNodes(ISystemContext context)
     {
-        var uanodesPath = "CompanionSpecs/DI/Opc.Ua.DI.PredefinedNodes.uanodes"; // embedded resource, LogicalName in opc-plc.csproj
+        var uanodesPath = "OpcUaDi"; // embedded resource, LogicalName in opc-plc.csproj
 
         var predefinedNodes = new NodeStateCollection();
         predefinedNodes.LoadFromBinaryResource(context,
