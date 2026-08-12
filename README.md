@@ -5,6 +5,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE.md)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-☕-FFDD00)](https://buymeacoffee.com/drusteeby)
 
+![DruOPC Browser connected to the simulator, watching live variables](docs/media/druopc-browser.jpg)
+
 **DruOPC** is a two-piece toolkit for learning, testing and demonstrating
 OPC UA:
 
@@ -32,6 +34,18 @@ hunt, you can [buy me a coffee](https://buymeacoffee.com/drusteeby). ☕
 > match this fork.
 
 ## Quick start
+
+### Docker
+
+```console
+git clone https://github.com/drusteeby/DruOPC.git
+cd DruOPC
+docker compose up
+```
+
+Open <http://localhost:5080> and connect to `opc.tcp://simulator:50000`.
+
+### From source
 
 Prerequisite: [.NET SDK](https://dotnet.microsoft.com/download) 10 or later.
 
