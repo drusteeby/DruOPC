@@ -31,7 +31,6 @@ namespace SimpleEvents;
 
 using Opc.Ua;
 using Opc.Ua.Server;
-using OpcPlc.Helpers;
 using OpcPlc.SimpleEvent;
 using System;
 using System.Collections.Generic;
@@ -89,7 +88,7 @@ public sealed class SimpleEventsNodeManager : CustomNodeManager2
     /// </summary>
     protected override NodeStateCollection LoadPredefinedNodes(ISystemContext context)
     {
-        var uanodesPath = AppFilesHelper.GetPath("SimpleEvent/SimpleEvents.PredefinedNodes.uanodes");
+        var uanodesPath = "SimpleEvent/SimpleEvents.PredefinedNodes.uanodes"; // embedded resource, LogicalName in opc-plc.csproj
 
         var predefinedNodes = new NodeStateCollection();
         predefinedNodes.LoadFromBinaryResource(context,

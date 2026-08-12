@@ -157,12 +157,12 @@ public class Boiler2PluginNodes : PluginNodeBase, IPluginNodes
     /// </summary>
     private static NodeStateCollection LoadPredefinedNodes(ISystemContext context)
     {
-        var uanodesPath = AppFilesHelper.GetPath("Boilers/Boiler2/BoilerModel2.PredefinedNodes.uanodes");
+        var uanodesPath = "Boilers/Boiler2/BoilerModel2.PredefinedNodes.uanodes"; // embedded resource, LogicalName in opc-plc.csproj
 
         var predefinedNodes = new NodeStateCollection();
 
         predefinedNodes.LoadFromBinaryResource(context,
-            uanodesPath, // CopyToOutputDirectory -> PreserveNewest.
+            uanodesPath,
             typeof(PlcNodeManager).GetTypeInfo().Assembly,
             updateTables: true);
 
