@@ -9,7 +9,6 @@ using OpcPlc.Helpers;
 using OpcPlc.PluginNodes.Models;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -158,12 +157,7 @@ public class Boiler2PluginNodes : PluginNodeBase, IPluginNodes
     /// </summary>
     private static NodeStateCollection LoadPredefinedNodes(ISystemContext context)
     {
-        // Resolve against the snap root or the app base directory (not the CWD),
-        // so `dotnet run --project src` works from anywhere.
-        var snapLocation = Environment.GetEnvironmentVariable("SNAP");
-        var uanodesPath = Path.Join(
-            string.IsNullOrWhiteSpace(snapLocation) ? AppContext.BaseDirectory : snapLocation,
-            "Boilers/Boiler2/BoilerModel2.PredefinedNodes.uanodes");
+        var uanodesPath = AppFilesHelper.GetPath("Boilers/Boiler2/BoilerModel2.PredefinedNodes.uanodes");
 
         var predefinedNodes = new NodeStateCollection();
 

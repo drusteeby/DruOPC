@@ -2,8 +2,8 @@ namespace OpcPlc.CompanionSpecs.DI;
 
 using Opc.Ua;
 using Opc.Ua.Server;
+using OpcPlc.Helpers;
 using System;
-using System.IO;
 using System.Reflection;
 
 /// <summary>
@@ -31,12 +31,7 @@ public sealed class DiNodeManager : CustomNodeManager2
     /// </summary>
     protected override NodeStateCollection LoadPredefinedNodes(ISystemContext context)
     {
-        // Resolve against the snap root or the app base directory (not the CWD),
-        // so `dotnet run --project src` works from anywhere.
-        var snapLocation = Environment.GetEnvironmentVariable("SNAP");
-        var uanodesPath = Path.Join(
-            string.IsNullOrWhiteSpace(snapLocation) ? AppContext.BaseDirectory : snapLocation,
-            "CompanionSpecs/DI/Opc.Ua.DI.PredefinedNodes.uanodes");
+        var uanodesPath = AppFilesHelper.GetPath("CompanionSpecs/DI/Opc.Ua.DI.PredefinedNodes.uanodes");
 
         var predefinedNodes = new NodeStateCollection();
         predefinedNodes.LoadFromBinaryResource(context,
