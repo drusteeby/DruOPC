@@ -18,7 +18,12 @@ public sealed class UaApplicationProvider
     /// Root directory for the client PKI stores.
     /// </summary>
     public static string PkiRoot { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        // SpecialFolderOption.Create: with the default option the folder resolves
+        // to "" when ~/.local/share does not exist (e.g. in containers), which
+        // silently turns PkiRoot into a CWD-relative path.
+        Environment.GetFolderPath(
+            Environment.SpecialFolder.LocalApplicationData,
+            Environment.SpecialFolderOption.Create),
         "DruOPC",
         "pki");
 

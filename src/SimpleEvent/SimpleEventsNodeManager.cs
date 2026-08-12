@@ -89,13 +89,12 @@ public sealed class SimpleEventsNodeManager : CustomNodeManager2
     /// </summary>
     protected override NodeStateCollection LoadPredefinedNodes(ISystemContext context)
     {
-        var uanodesPath = "SimpleEvent/SimpleEvents.PredefinedNodes.uanodes";
+        // Resolve against the snap root or the app base directory (not the CWD),
+        // so `dotnet run --project src` works from anywhere.
         var snapLocation = Environment.GetEnvironmentVariable("SNAP");
-        if (!string.IsNullOrWhiteSpace(snapLocation))
-        {
-            // Application running as a snap
-            uanodesPath = Path.Join(snapLocation, uanodesPath);
-        }
+        var uanodesPath = Path.Join(
+            string.IsNullOrWhiteSpace(snapLocation) ? AppContext.BaseDirectory : snapLocation,
+            "SimpleEvent/SimpleEvents.PredefinedNodes.uanodes");
 
         var predefinedNodes = new NodeStateCollection();
         predefinedNodes.LoadFromBinaryResource(context,

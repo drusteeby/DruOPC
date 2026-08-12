@@ -158,13 +158,12 @@ public class Boiler2PluginNodes : PluginNodeBase, IPluginNodes
     /// </summary>
     private static NodeStateCollection LoadPredefinedNodes(ISystemContext context)
     {
-        var uanodesPath = "Boilers/Boiler2/BoilerModel2.PredefinedNodes.uanodes";
+        // Resolve against the snap root or the app base directory (not the CWD),
+        // so `dotnet run --project src` works from anywhere.
         var snapLocation = Environment.GetEnvironmentVariable("SNAP");
-        if (!string.IsNullOrWhiteSpace(snapLocation))
-        {
-            // Application running as a snap
-            uanodesPath = Path.Join(snapLocation, uanodesPath);
-        }
+        var uanodesPath = Path.Join(
+            string.IsNullOrWhiteSpace(snapLocation) ? AppContext.BaseDirectory : snapLocation,
+            "Boilers/Boiler2/BoilerModel2.PredefinedNodes.uanodes");
 
         var predefinedNodes = new NodeStateCollection();
 
