@@ -76,7 +76,7 @@ public class OpcPlcConfiguration
     /// <summary>
     /// Web server port for hosting OPC Publisher file.
     /// </summary>
-    public uint WebServerPort { get; set; } = 8080;
+    public uint WebServerPort { get; set; } = 5080;
 
     /// <summary>
     /// Show usage help.

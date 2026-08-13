@@ -2,7 +2,7 @@
   "name": "iotedge/opc-plc",
   "buildAlways": true,
   "exposes": [
-    "8080",
+    "5080",
     "50000"
   ]
 }

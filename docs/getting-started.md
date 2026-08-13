@@ -57,7 +57,7 @@ same thing by hand.
 ```console
 sudo snap install druopc
 druopc.simulator   # terminal 1 — the simulated PLC
-druopc.browser     # terminal 2 — DruOPC on http://localhost:5080
+druopc.browser     # terminal 2 — DruOPC on http://localhost:5000
 ```
 
 ### macOS (download the binaries)
@@ -79,7 +79,7 @@ tar -xzf druopc-browser-$VERSION-$ARCH.tar.gz -C druopc/browser
 xattr -dr com.apple.quarantine druopc
 
 ./druopc/simulator/opcplc   # terminal 1 — the simulated PLC
-./druopc/browser/DruOpc     # terminal 2 — DruOPC on http://localhost:5080
+./druopc/browser/DruOpc     # terminal 2 — DruOPC on http://localhost:5000
 ```
 
 ### Windows (download the binaries)
@@ -97,7 +97,7 @@ foreach ($app in "simulator", "browser") {
 }
 
 .\druopc\simulator\opcplc.exe   # terminal 1 — the simulated PLC
-.\druopc\browser\DruOpc.exe     # terminal 2 — DruOPC on http://localhost:5080
+.\druopc\browser\DruOpc.exe     # terminal 2 — DruOPC on http://localhost:5000
 ```
 
 ### Docker
@@ -109,10 +109,10 @@ is needed at all:
 docker network create druopc
 docker run --rm -d --network druopc --name simulator -p 50000:50000 \
   -e OpcPlc__OpcUa__Hostname=simulator ghcr.io/drusteeby/druopc-simulator:latest
-docker run --rm -d --network druopc -p 5080:8080 ghcr.io/drusteeby/druopc-browser:latest
+docker run --rm -d --network druopc -p 5000:8080 ghcr.io/drusteeby/druopc-browser:latest
 ```
 
-Then open <http://localhost:5080> and connect to `opc.tcp://simulator:50000`
+Then open <http://localhost:5000> and connect to `opc.tcp://simulator:50000`
 (not `localhost` — inside the network the simulator is named `simulator`).
 Or clone the repo and just run `docker compose up`.
 
@@ -211,8 +211,8 @@ Open a **second** terminal in the same folder:
 dotnet run --project browser
 ```
 
-When it prints `Now listening on: http://localhost:5080`, open
-**<http://localhost:5080>** in your web browser (Chrome, Edge or Firefox).
+When it prints `Now listening on: http://localhost:5000`, open
+**<http://localhost:5000>** in your web browser (Chrome, Edge or Firefox).
 
 ## Step 5 — Connect
 

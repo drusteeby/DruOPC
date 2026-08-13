@@ -19,7 +19,7 @@ Solution file: `druopc.slnx`. Prerequisite: [.NET SDK](https://dotnet.microsoft.
 dotnet build druopc.slnx     # build everything
 dotnet test tests            # run the full integration suite (~3 minutes)
 dotnet run --project src     # run the simulator  (opc.tcp://localhost:50000)
-dotnet run --project browser # run the browser    (http://localhost:5080)
+dotnet run --project browser # run the browser    (http://localhost:5000)
 ```
 
 ## Reporting bugs

@@ -3,14 +3,14 @@
 #
 #   1. Set real passwords:  export DRUOPC_ADMIN_PW=...  DRUOPC_USER_PW=...
 #   2. docker compose up -d
-#   3. Point visitors at http://<host>:5080 (connect to opc.tcp://simulator:50000)
+#   3. Point visitors at http://<host>:5000 (connect to opc.tcp://simulator:50000)
 #
 # Notes for operators:
 # - Writes and alarm acknowledgements only affect the simulation, and the
 #   simulation continuously overwrites its own values; letting demo visitors
 #   write is safe and is the "wow" moment. To forbid it anyway, front the
 #   browser with an authenticating reverse proxy.
-# - Port 5080 is plain HTTP. For a public demo put a TLS reverse proxy
+# - Port 5000 is plain HTTP. For a public demo put a TLS reverse proxy
 #   (Caddy/Traefik/nginx) in front and only expose 443 + 50000.
 # - Restarting the stack resets all simulation state; a nightly
 #   `docker compose restart` keeps the demo clean.
@@ -38,7 +38,7 @@ services:
     mem_limit: 768m
     cpus: 1.0
     ports:
-      - "5080:8080"
+      - "5000:8080"
     depends_on:
       - simulator
 
