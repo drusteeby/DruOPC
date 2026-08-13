@@ -20,7 +20,7 @@ case "$(uname -s)" in
       echo
       echo "Done. Start it:"
       echo "  druopc.simulator   # terminal 1 - the simulated PLC"
-      echo "  druopc.browser     # terminal 2 - DruOPC on http://localhost:5080"
+      echo "  druopc.browser     # terminal 2 - DruOPC on http://localhost:5000"
       exit 0
     fi
     OS=linux ;;
@@ -57,4 +57,4 @@ fi
 echo
 echo "Done. Start it:"
 echo "  $DIR/simulator/opcplc   # terminal 1 - the simulated PLC"
-echo "  $DIR/browser/DruOpc     # terminal 2 - DruOPC on http://localhost:5080"
+echo "  $DIR/browser/DruOpc     # terminal 2 - DruOPC on http://localhost:5000"

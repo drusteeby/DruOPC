@@ -43,7 +43,7 @@ cd DruOPC
 docker compose up
 ```
 
-Open <http://localhost:5080> and connect to `opc.tcp://simulator:50000`.
+Open <http://localhost:5000> and connect to `opc.tcp://simulator:50000`.
 
 ### From source
 
@@ -56,11 +56,11 @@ cd DruOPC
 # terminal 1 — the simulated PLC (OPC UA server on opc.tcp://localhost:50000)
 dotnet run --project src
 
-# terminal 2 — DruOPC (web client on http://localhost:5080)
+# terminal 2 — DruOPC (web client on http://localhost:5000)
 dotnet run --project browser
 ```
 
-Open <http://localhost:5080>, click **Connect**, trust the certificate — you are
+Open <http://localhost:5000>, click **Connect**, trust the certificate — you are
 browsing live data.
 
 **New to OPC UA?** The **[getting started guide](docs/getting-started.md)** walks
@@ -185,7 +185,7 @@ Keys are relative to the `OpcPlc` section, so `OpcUa:ServerPort` means
 | `OpcUa:MaxSessionTimeout` | `3600000` | Session idle timeout (ms) |
 | `OpcUa:OpcMaxStringLength` | `1048576` | Max transferable string length |
 | `OpcUa:LdsRegistrationInterval` | `0` | Registration interval in ms with an OPC UA Local Discovery Server, if you run one (0 = off) |
-| `WebServerPort` | `8080` | HTTP port serving the `pn.json` file (a ready-made node list for Microsoft's *OPC Publisher* edge module; ignore if you don't use it) |
+| `WebServerPort` | `5080` | HTTP port serving the `pn.json` file (a ready-made node list for Microsoft's *OPC Publisher* edge module; ignore if you don't use it) |
 | `ShowPublisherConfigJsonIp` / `ShowPublisherConfigJsonPh` | `true` / `false` | Write/log `pn.json` using IP / hostname as EndpointUrl |
 | `PnJson` | `pn.json` | Name of the OPC Publisher file |
 | `LogLevelCli` | `info` | Log level (`critical`…`trace`) |
@@ -285,20 +285,20 @@ curl -O https://raw.githubusercontent.com/drusteeby/DruOPC/main/compose.yaml
 docker compose up
 ```
 
-Then open <http://localhost:5080> and connect to `opc.tcp://simulator:50000`
+Then open <http://localhost:5000> and connect to `opc.tcp://simulator:50000`
 (the simulator's name on the compose network).
 
 Or run the pieces individually:
 
 ```console
 # The simulator (OPC UA on 50000)
-docker run --rm -it -p 50000:50000 -p 8080:8080 \
+docker run --rm -it -p 50000:50000 -p 5080:5080 \
   -e OpcPlc__Simulation__AddAlarmSimulation=true \
   -v druopc-pki:/app/pki \
   ghcr.io/drusteeby/druopc-simulator:latest
 
-# The browser (web UI on http://localhost:5080)
-docker run --rm -it -p 5080:8080 ghcr.io/drusteeby/druopc-browser:latest
+# The browser (web UI on http://localhost:5000)
+docker run --rm -it -p 5000:8080 ghcr.io/drusteeby/druopc-browser:latest
 ```
 
 Any `OpcPlc__*` environment variable from the

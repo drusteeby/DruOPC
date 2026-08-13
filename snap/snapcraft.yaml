@@ -10,7 +10,7 @@ description: |
     nodes. Listens on opc.tcp://localhost:50000.
   - druopc.browser - a web-based OPC UA client for browsing and inspecting
     any OPC UA server: live watch lists, writes, methods, events, alarms
-    with acknowledge, history and more. Open http://localhost:5080 after
+    with acknowledge, history and more. Open http://localhost:5000 after
     starting it.
 
   Configure the simulator with OpcPlc__* environment variables, e.g.
@@ -71,7 +71,7 @@ apps:
   browser:
     command: bin/browser.sh
     environment:
-      ASPNETCORE_URLS: http://0.0.0.0:5080
+      ASPNETCORE_URLS: http://0.0.0.0:5000
     plugs:
       - network
       - network-bind

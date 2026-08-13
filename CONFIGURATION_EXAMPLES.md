@@ -23,7 +23,7 @@ This document provides example `appsettings.json` configurations for common scen
       "AutoAcceptCerts": true
     },
     "ShowPublisherConfigJsonIp": true,
-    "WebServerPort": 8080
+    "WebServerPort": 5080
   }
 }
 ```
@@ -221,7 +221,7 @@ services:
     image: opcplc:latest
     ports:
       - "50000:50000"
-      - "8080:8080"
+      - "5080:5080"
     environment:
       - OpcPlc__OpcUa__ServerPort=50000
       - OpcPlc__OpcUa__Hostname=opcplc
@@ -299,7 +299,7 @@ spec:
         image: opcplc:latest
         ports:
         - containerPort: 50000
-        - containerPort: 8080
+        - containerPort: 5080
         volumeMounts:
         - name: config
           mountPath: /app/appsettings.json
