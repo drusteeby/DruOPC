@@ -40,6 +40,18 @@ Prebuilt packages are the fastest path — pick one, then skip straight to
 [Step 5 — Connect](#step-5--connect). (To build from source instead, continue
 with Step 1.)
 
+### One-line install (Linux and macOS)
+
+```console
+curl -fsSL https://raw.githubusercontent.com/drusteeby/DruOPC/main/install.sh | sh
+```
+
+The script detects your OS and CPU: on Linux with snapd it installs the snap;
+otherwise it downloads the latest release binaries to `~/druopc` (override with
+`DRUOPC_HOME`) and, on macOS, clears Gatekeeper's quarantine flag for you. It
+prints the two commands to start when it finishes. The sections below do the
+same thing by hand.
+
 ### Linux (snap)
 
 ```console
