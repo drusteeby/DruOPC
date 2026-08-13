@@ -338,6 +338,15 @@ enabled) for hosting a shared "try it live" instance on any Docker host.
 
 ## Installing from package managers
 
+One-line install on Linux and macOS — detects your OS and picks the snap or
+the release binaries (see the
+[getting started guide](docs/getting-started.md#installing-without-building)
+for details and the manual steps):
+
+```console
+curl -fsSL https://raw.githubusercontent.com/drusteeby/DruOPC/main/install.sh | sh
+```
+
 - **Snap (Linux)**: `sudo snap install druopc`, then `druopc.simulator` and
   `druopc.browser`.
 - **NuGet**: the `DruOPC.Simulator` package lets you embed the simulator in
