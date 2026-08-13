@@ -12,6 +12,10 @@ on:
 
 jobs:
   claude-review:
+    # Dependabot runs don't get Actions secrets, so the review token is empty
+    # and the job can only fail; version bumps don't need a review anyway.
+    if: github.actor != 'dependabot[bot]'
+
     # Optional: Filter by PR author
     # if: |
     #   github.event.pull_request.user.login == 'external-contributor' ||
