@@ -1,7 +1,13 @@
 using DruOpc.Components;
 using DruOpc.Services;
 
-var builder = WebApplication.CreateBuilder(args);
+// Anchor the content root to the app directory so static assets resolve
+// no matter which directory the binary is started from.
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory,
+});
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
