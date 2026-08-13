@@ -34,6 +34,76 @@ If you know PLCs but not OPC UA, here is the mental model:
 
 That is enough to follow everything below.
 
+## Installing without building
+
+Prebuilt packages are the fastest path — pick one, then skip straight to
+[Step 5 — Connect](#step-5--connect). (To build from source instead, continue
+with Step 1.)
+
+### Linux (snap)
+
+```console
+sudo snap install druopc
+druopc.simulator   # terminal 1 — the simulated PLC
+druopc.browser     # terminal 2 — DruOPC on http://localhost:5080
+```
+
+### macOS (download the binaries)
+
+Download the archives for your CPU — `osx-arm64` for Apple Silicon, `osx-x64`
+for Intel — from the [releases page](https://github.com/drusteeby/DruOPC/releases),
+or from the terminal:
+
+```console
+VERSION=v1.0.1   # check the releases page for the latest
+ARCH=osx-arm64   # or osx-x64 on Intel Macs
+curl -LO https://github.com/drusteeby/DruOPC/releases/download/$VERSION/druopc-simulator-$VERSION-$ARCH.tar.gz
+curl -LO https://github.com/drusteeby/DruOPC/releases/download/$VERSION/druopc-browser-$VERSION-$ARCH.tar.gz
+mkdir -p druopc/simulator druopc/browser
+tar -xzf druopc-simulator-$VERSION-$ARCH.tar.gz -C druopc/simulator
+tar -xzf druopc-browser-$VERSION-$ARCH.tar.gz -C druopc/browser
+
+# The binaries are not notarized, so clear Gatekeeper's quarantine flag once:
+xattr -dr com.apple.quarantine druopc
+
+./druopc/simulator/opcplc   # terminal 1 — the simulated PLC
+./druopc/browser/DruOpc     # terminal 2 — DruOPC on http://localhost:5080
+```
+
+### Windows (download the binaries)
+
+Download `druopc-simulator-<version>-win-x64.zip` and
+`druopc-browser-<version>-win-x64.zip` from the
+[releases page](https://github.com/drusteeby/DruOPC/releases) and extract them,
+or in PowerShell:
+
+```powershell
+$V = "v1.0.1"   # check the releases page for the latest
+foreach ($app in "simulator", "browser") {
+  Invoke-WebRequest "https://github.com/drusteeby/DruOPC/releases/download/$V/druopc-$app-$V-win-x64.zip" -OutFile "druopc-$app.zip"
+  Expand-Archive "druopc-$app.zip" -DestinationPath "druopc\$app"
+}
+
+.\druopc\simulator\opcplc.exe   # terminal 1 — the simulated PLC
+.\druopc\browser\DruOpc.exe     # terminal 2 — DruOPC on http://localhost:5080
+```
+
+### Docker
+
+With [Docker](https://docs.docker.com/get-docker/) installed, no download step
+is needed at all:
+
+```console
+docker network create druopc
+docker run --rm -d --network druopc --name simulator -p 50000:50000 \
+  -e OpcPlc__OpcUa__Hostname=simulator ghcr.io/drusteeby/druopc-simulator:latest
+docker run --rm -d --network druopc -p 5080:8080 ghcr.io/drusteeby/druopc-browser:latest
+```
+
+Then open <http://localhost:5080> and connect to `opc.tcp://simulator:50000`
+(not `localhost` — inside the network the simulator is named `simulator`).
+Or clone the repo and just run `docker compose up`.
+
 ## Step 1 — Install the .NET SDK
 
 Both programs run on the free, cross-platform .NET SDK (version 10 or later).
