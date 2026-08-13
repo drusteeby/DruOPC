@@ -12,7 +12,7 @@ every feature, troubleshooting and an OPC UA glossary.
 
 ```bash
 dotnet run --project browser
-# then open http://localhost:5080
+# then open http://localhost:5000
 ```
 
 By default it offers to connect to `opc.tcp://localhost:50000` (the local OPC PLC

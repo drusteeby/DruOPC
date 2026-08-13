@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   DruOPC on a single EC2 instance: the OPC UA simulator (port 50000, pn.json
-  on 8080) and the web browser client (port 5080), run as Docker containers.
+  on 5080) and the web browser client (port 5000), run as Docker containers.
   Deploy via CloudFormation -> Create stack -> Upload a template file.
 
 Parameters:
@@ -29,12 +29,12 @@ Resources:
           ToPort: 50000
           CidrIp: { Ref: AllowedCidr }
         - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
-          CidrIp: { Ref: AllowedCidr }
-        - IpProtocol: tcp
           FromPort: 5080
           ToPort: 5080
+          CidrIp: { Ref: AllowedCidr }
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
           CidrIp: { Ref: AllowedCidr }
 
   Instance:
@@ -57,14 +57,14 @@ Resources:
           PUBLIC_HOSTNAME=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname || true)
 
           docker run -d --name druopc-simulator --restart unless-stopped \
-            -p 50000:50000 -p 8080:8080 \
+            -p 50000:50000 -p 5080:5080 \
             -e "OpcPlc__OpcUa__Hostname=${PUBLIC_HOSTNAME:-localhost}" \
             -e OpcPlc__Simulation__AddAlarmSimulation=true \
             -v druopc-pki:/app/pki \
             ghcr.io/drusteeby/druopc-simulator:latest
 
           docker run -d --name druopc-browser --restart unless-stopped \
-            -p 5080:8080 \
+            -p 5000:8080 \
             ghcr.io/drusteeby/druopc-browser:latest
 
 Outputs:
@@ -73,4 +73,4 @@ Outputs:
       Fn::Sub: "opc.tcp://${Instance.PublicDnsName}:50000"
   BrowserUrl:
     Value:
-      Fn::Sub: "http://${Instance.PublicDnsName}:5080"
+      Fn::Sub: "http://${Instance.PublicDnsName}:5000"

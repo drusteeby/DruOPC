@@ -42,8 +42,8 @@
           "dnsNameLabel": "[variables('dnsLabel')]",
           "ports": [
             { "protocol": "TCP", "port": 50000 },
-            { "protocol": "TCP", "port": 8080 },
-            { "protocol": "TCP", "port": 5080 }
+            { "protocol": "TCP", "port": 5080 },
+            { "protocol": "TCP", "port": 5000 }
           ]
         },
         "containers": [
@@ -53,7 +53,7 @@
               "image": "ghcr.io/drusteeby/druopc-simulator:latest",
               "ports": [
                 { "protocol": "TCP", "port": 50000 },
-                { "protocol": "TCP", "port": 8080 }
+                { "protocol": "TCP", "port": 5080 }
               ],
               "environmentVariables": [
                 { "name": "OpcPlc__OpcUa__Hostname", "value": "[variables('fqdn')]" },
@@ -69,10 +69,10 @@
             "properties": {
               "image": "ghcr.io/drusteeby/druopc-browser:latest",
               "ports": [
-                { "protocol": "TCP", "port": 5080 }
+                { "protocol": "TCP", "port": 5000 }
               ],
               "environmentVariables": [
-                { "name": "ASPNETCORE_URLS", "value": "http://0.0.0.0:5080" }
+                { "name": "ASPNETCORE_URLS", "value": "http://0.0.0.0:5000" }
               ],
               "resources": {
                 "requests": { "cpu": 1, "memoryInGB": 1 }
@@ -90,7 +90,7 @@
     },
     "browserUrl": {
       "type": "string",
-      "value": "[concat('http://', variables('fqdn'), ':5080')]"
+      "value": "[concat('http://', variables('fqdn'), ':5000')]"
     }
   }
 }

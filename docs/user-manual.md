@@ -299,7 +299,7 @@ clickable:
 
 ## Sharing and multiple servers
 
-- **Deep links**: `http://<druopc-host>:5080/?endpoint=opc.tcp://…&node=ns=3;s=…`
+- **Deep links**: `http://<druopc-host>:5000/?endpoint=opc.tcp://…&node=ns=3;s=…`
   opens DruOPC, connects and reveals the node. The **⧉ link** button builds these
   for you. Anyone with network reach to the DruOPC host and the server can follow
   the link — treat links like remote controls, not like screenshots.
@@ -322,9 +322,9 @@ clickable:
 | `BadHistoryOperationUnsupported` in the history dialog | The server does not historize this node. Nothing is wrong with the connection. |
 | Acknowledge fails with `BadEventIdUnknown` | The condition changed state between display and click. The row updates within a second — acknowledge again. |
 | Simulator: `Failed to establish tcp listener` / port in use | Another program (or a second simulator) already uses port 50000. Stop it, or change `OpcPlc:OpcUa:ServerPort` in `src/appsettings.json`. |
-| Simulator: startup error about the web server / port 8080 | Port 8080 is a popular dev port and something else owns it. Change `OpcPlc:WebServerPort` in `src/appsettings.json` (it only serves the optional `pn.json` file). |
+| Simulator: startup error about the web server / port 5080 | Something else owns port 5080. Change `OpcPlc:WebServerPort` in `src/appsettings.json` (it only serves the optional `pn.json` file). |
 | Works on `localhost`, but a colleague's PC cannot reach the simulator or DruOPC | Windows Firewall blocked the ports when you dismissed its first-run dialog. Allow the apps in *Windows Security → Firewall → Allow an app*, or re-run and click **Allow access**. |
-| DruOPC page does not load | The DruOPC host process is not running, or another program owns port 5080. Restart with `dotnet run --project browser`; set `ASPNETCORE_URLS=http://localhost:<other-port>` to move it. |
+| DruOPC page does not load | The DruOPC host process is not running, or another program owns port 5000. Restart with `dotnet run --project browser`; set `ASPNETCORE_URLS=http://localhost:<other-port>` to move it. |
 | Clipboard buttons do nothing | Browsers restrict clipboard access on non-HTTPS pages served from other machines. Use DruOPC on `localhost`, or serve it over HTTPS. |
 
 ## Glossary
