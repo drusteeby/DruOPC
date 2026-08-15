@@ -50,7 +50,7 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.17.0" />
 	<PackageReference Include="Scrutor" Version="7.0.0" />
     <PackageReference Include="Serilog.Extensions.Logging.File" Version="3.0.0" />
-    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.301" />
+    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.400" />
     <PackageReference Update="Nerdbank.GitVersioning" Version="3.10.91" />
   </ItemGroup>
 
