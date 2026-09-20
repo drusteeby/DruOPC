@@ -44,8 +44,7 @@ public class VariableTests : SimulatorTestsBase
 
         results.Should().Be(StatusCodes.Good);
 
-        (await Session.ReadValueAsync(nodeId).ConfigureAwait(false))
-            .Value
+        (await ReadValueAsync<object>(nodeId).ConfigureAwait(false))
             .Should().BeEquivalentTo(newValue);
     }
 }

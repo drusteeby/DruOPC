@@ -731,12 +731,7 @@ namespace AlarmCondition
         /// </summary>
         private static string GetUserName(ISystemContext context)
         {
-            if (context.UserIdentity != null)
-            {
-                return context.UserIdentity.DisplayName;
-            }
-
-            return null;
+            return context.UserId;
         }
         #endregion
 

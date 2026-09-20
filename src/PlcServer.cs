@@ -70,7 +70,7 @@ public partial class PlcServer : StandardServer
                     ThreadPool.GetAvailableThreads(out int availWorkerThreads, out _);
 
                     uint sessionCount = ServerInternal.ServerDiagnostics.CurrentSessionCount;
-                    IList<Subscription> subscriptions = ServerInternal.SubscriptionManager.GetSubscriptions();
+                    IList<ISubscription> subscriptions = ServerInternal.SubscriptionManager.GetSubscriptions();
                     int monitoredItemsCount = subscriptions.Sum(s => s.MonitoredItemCount);
 
                     _autoDisablePublishMetrics = sessionCount > 40 || monitoredItemsCount > 500;
@@ -124,7 +124,8 @@ public partial class PlcServer : StandardServer
          (Config.OtlpPublishMetrics == "auto" && !_autoDisablePublishMetrics)
         );
 
-    public override ResponseHeader CreateSession(
+    public override async Task<CreateSessionResponse> CreateSessionAsync(
+        SecureChannelContext secureChannelContext,
         RequestHeader requestHeader,
         ApplicationDescription clientDescription,
         string serverUri,
@@ -134,55 +135,38 @@ public partial class PlcServer : StandardServer
         byte[] clientCertificate,
         double requestedSessionTimeout,
         uint maxResponseMessageSize,
-        out NodeId sessionId,
-        out NodeId authenticationToken,
-        out double revisedSessionTimeout,
-        out byte[] serverNonce,
-        out byte[] serverCertificate,
-        out EndpointDescriptionCollection serverEndpoints,
-        out SignedSoftwareCertificateCollection serverSoftwareCertificates,
-        out SignatureData serverSignature,
-        out uint maxRequestMessageSize)
+        CancellationToken ct)
     {
         _countCreateSession++;
 
         try
         {
-            var responseHeader = base.CreateSession(requestHeader, clientDescription, serverUri, endpointUrl, sessionName, clientNonce, clientCertificate, requestedSessionTimeout, maxResponseMessageSize, out sessionId, out authenticationToken, out revisedSessionTimeout, out serverNonce, out serverCertificate, out serverEndpoints, out serverSoftwareCertificates, out serverSignature, out maxRequestMessageSize);
+            var response = await base.CreateSessionAsync(secureChannelContext, requestHeader, clientDescription, serverUri, endpointUrl, sessionName, clientNonce, clientCertificate, requestedSessionTimeout, maxResponseMessageSize, ct).ConfigureAwait(false);
 
-            MetricsHelper.AddSessionCount(sessionId.ToString());
+            MetricsHelper.AddSessionCount(response.SessionId.ToString());
 
-            LogSuccessWithSessionId(nameof(CreateSession), sessionId);
+            LogSuccessWithSessionId("CreateSession", response.SessionId);
 
-            return responseHeader;
+            return response;
         }
         catch (ServiceResultException ex) when (ex.StatusCode == StatusCodes.BadServerHalted)
         {
             // Handle when a client attempts to reconnect while the server is still starting up or halting.
             LogCreateSessionWhileHalted();
 
-            sessionId = null;
-            authenticationToken = null;
-            revisedSessionTimeout = 0;
-            serverNonce = Array.Empty<byte>();
-            serverCertificate = Array.Empty<byte>();
-            serverEndpoints = new EndpointDescriptionCollection();
-            serverSoftwareCertificates = new SignedSoftwareCertificateCollection();
-            serverSignature = new SignatureData();
-            maxRequestMessageSize = 0;
-
-            return new ResponseHeader { ServiceResult = StatusCodes.BadServerHalted };
+            return new CreateSessionResponse { ResponseHeader = new ResponseHeader { ServiceResult = StatusCodes.BadServerHalted } };
         }
         catch (Exception ex)
         {
-            MetricsHelper.RecordTotalErrors(nameof(CreateSession));
+            MetricsHelper.RecordTotalErrors("CreateSession");
 
-            LogError(nameof(CreateSession), ex);
+            LogError("CreateSession", ex);
             throw;
         }
     }
 
-    public override ResponseHeader CreateSubscription(
+    public override async Task<CreateSubscriptionResponse> CreateSubscriptionAsync(
+        SecureChannelContext secureChannelContext,
         RequestHeader requestHeader,
         double requestedPublishingInterval,
         uint requestedLifetimeCount,
@@ -190,58 +174,52 @@ public partial class PlcServer : StandardServer
         uint maxNotificationsPerPublish,
         bool publishingEnabled,
         byte priority,
-        out uint subscriptionId,
-        out double revisedPublishingInterval,
-        out uint revisedLifetimeCount,
-        out uint revisedMaxKeepAliveCount)
+        CancellationToken ct)
     {
         _countCreateSubscription++;
 
         try
         {
-            var responseHeader = base.CreateSubscription(requestHeader, requestedPublishingInterval, requestedLifetimeCount, requestedMaxKeepAliveCount, maxNotificationsPerPublish, publishingEnabled, priority, out subscriptionId, out revisedPublishingInterval, out revisedLifetimeCount, out revisedMaxKeepAliveCount);
+            var response = await base.CreateSubscriptionAsync(secureChannelContext, requestHeader, requestedPublishingInterval, requestedLifetimeCount, requestedMaxKeepAliveCount, maxNotificationsPerPublish, publishingEnabled, priority, ct).ConfigureAwait(false);
 
             NodeId sessionId = GetSessionId(requestHeader.AuthenticationToken);
-            MetricsHelper.AddSubscriptionCount(sessionId.ToString(), subscriptionId.ToString());
+            MetricsHelper.AddSubscriptionCount(sessionId.ToString(), response.SubscriptionId.ToString());
 
             LogSuccessWithSessionIdAndSubscriptionId(
-                nameof(CreateSubscription),
+                "CreateSubscription",
                 sessionId,
-                subscriptionId);
+                response.SubscriptionId);
 
-            return responseHeader;
+            return response;
         }
         catch (Exception ex)
         {
-            MetricsHelper.RecordTotalErrors(nameof(CreateSubscription));
+            MetricsHelper.RecordTotalErrors("CreateSubscription");
 
-            LogError(nameof(CreateSubscription), ex);
+            LogError("CreateSubscription", ex);
             throw;
         }
     }
 
-    public override ResponseHeader CreateMonitoredItems(
+    public override async Task<CreateMonitoredItemsResponse> CreateMonitoredItemsAsync(
+        SecureChannelContext secureChannelContext,
         RequestHeader requestHeader,
         uint subscriptionId,
         TimestampsToReturn timestampsToReturn,
         MonitoredItemCreateRequestCollection itemsToCreate,
-        out MonitoredItemCreateResultCollection results,
-        out DiagnosticInfoCollection diagnosticInfos)
+        CancellationToken ct)
     {
         _countCreateMonitoredItems += (uint)itemsToCreate.Count;
 
-        results = default;
-        diagnosticInfos = default;
-
         try
         {
-            var responseHeader = base.CreateMonitoredItems(requestHeader, subscriptionId, timestampsToReturn, itemsToCreate, out results, out diagnosticInfos);
+            var response = await base.CreateMonitoredItemsAsync(secureChannelContext, requestHeader, subscriptionId, timestampsToReturn, itemsToCreate, ct).ConfigureAwait(false);
 
             MetricsHelper.AddMonitoredItemCount(itemsToCreate.Count);
 
             // Only log items with good status codes.
             var successfulItems = itemsToCreate
-                .Zip(results, (request, result) => new { Request = request, Result = result })
+                .Zip(response.Results, (request, result) => new { Request = request, Result = result })
                 .Where(item => StatusCode.IsGood(item.Result.StatusCode))
                 .Select(item => item.Request.ItemToMonitor.NodeId)
                 .ToList();
@@ -256,161 +234,151 @@ public partial class PlcServer : StandardServer
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 LogSuccessWithSessionIdAndSubscriptionIdAndCount(
-                    nameof(CreateMonitoredItems),
+                    "CreateMonitoredItems",
                     GetSessionId(requestHeader.AuthenticationToken),
                     subscriptionId,
                     itemsToCreate.Count);
             }
 
-            return responseHeader;
+            return response;
         }
         catch (Exception ex)
         {
-            MetricsHelper.RecordTotalErrors(nameof(CreateMonitoredItems));
+            MetricsHelper.RecordTotalErrors("CreateMonitoredItems");
 
-            LogError(nameof(CreateSubscription), ex);
+            LogError("CreateMonitoredItems", ex);
             throw;
         }
     }
 
-    public override ResponseHeader Publish(
+    public override async Task<PublishResponse> PublishAsync(
+        SecureChannelContext secureChannelContext,
         RequestHeader requestHeader,
         SubscriptionAcknowledgementCollection subscriptionAcknowledgements,
-        out uint subscriptionId,
-        out UInt32Collection availableSequenceNumbers,
-        out bool moreNotifications,
-        out NotificationMessage notificationMessage,
-        out StatusCodeCollection results,
-        out DiagnosticInfoCollection diagnosticInfos)
+        CancellationToken ct)
     {
         _countPublish++;
 
-        subscriptionId = default;
-        availableSequenceNumbers = default;
-        moreNotifications = default;
-        notificationMessage = default;
-        results = default;
-        diagnosticInfos = default;
-
         try
         {
-            var responseHeader = base.Publish(requestHeader, subscriptionAcknowledgements, out subscriptionId, out availableSequenceNumbers, out moreNotifications, out notificationMessage, out results, out diagnosticInfos);
+            var response = await base.PublishAsync(secureChannelContext, requestHeader, subscriptionAcknowledgements, ct).ConfigureAwait(false);
 
             if (PublishMetricsEnabled)
             {
-                AddPublishMetrics(notificationMessage);
+                AddPublishMetrics(response.NotificationMessage);
             }
 
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 LogSuccessWithSessionIdAndSubscriptionId(
-                    nameof(Publish),
+                    "Publish",
                     GetSessionId(requestHeader.AuthenticationToken),
-                    subscriptionId);
+                    response.SubscriptionId);
             }
 
-            return responseHeader;
+            return response;
         }
         catch (ServiceResultException ex) when (ex.StatusCode == StatusCodes.BadNoSubscription)
         {
-            MetricsHelper.RecordTotalErrors(nameof(Publish));
+            MetricsHelper.RecordTotalErrors("Publish");
 
             LogErrorWithStatusCode(
-                nameof(Publish),
+                "Publish",
                 nameof(StatusCodes.BadNoSubscription),
                 ex);
 
-            return new ResponseHeader { ServiceResult = StatusCodes.BadNoSubscription };
+            return new PublishResponse { ResponseHeader = new ResponseHeader { ServiceResult = StatusCodes.BadNoSubscription } };
         }
         catch (ServiceResultException ex) when (ex.StatusCode == StatusCodes.BadSessionIdInvalid)
         {
-            MetricsHelper.RecordTotalErrors(nameof(Publish));
+            MetricsHelper.RecordTotalErrors("Publish");
 
             LogErrorWithStatusCode(
-                nameof(Publish),
+                "Publish",
                 nameof(StatusCodes.BadSessionIdInvalid),
                 ex);
 
-            return new ResponseHeader { ServiceResult = StatusCodes.BadSessionIdInvalid };
+            return new PublishResponse { ResponseHeader = new ResponseHeader { ServiceResult = StatusCodes.BadSessionIdInvalid } };
         }
         catch (ServiceResultException ex) when (ex.StatusCode == StatusCodes.BadSecureChannelIdInvalid)
         {
-            MetricsHelper.RecordTotalErrors(nameof(Publish));
+            MetricsHelper.RecordTotalErrors("Publish");
 
             LogErrorWithStatusCode(
-                nameof(Publish),
+                "Publish",
                 nameof(StatusCodes.BadSecureChannelIdInvalid),
                 ex);
 
-            return new ResponseHeader { ServiceResult = StatusCodes.BadSecureChannelIdInvalid };
+            return new PublishResponse { ResponseHeader = new ResponseHeader { ServiceResult = StatusCodes.BadSecureChannelIdInvalid } };
         }
         catch (ServiceResultException ex) when (ex.StatusCode == StatusCodes.BadSessionClosed)
         {
-            MetricsHelper.RecordTotalErrors(nameof(Publish));
+            MetricsHelper.RecordTotalErrors("Publish");
 
             LogErrorWithStatusCode(
-                nameof(Publish),
+                "Publish",
                 nameof(StatusCodes.BadSessionClosed),
                 ex);
 
-            return new ResponseHeader { ServiceResult = StatusCodes.BadSessionClosed };
+            return new PublishResponse { ResponseHeader = new ResponseHeader { ServiceResult = StatusCodes.BadSessionClosed } };
         }
         catch (Exception ex)
         {
-            MetricsHelper.RecordTotalErrors(nameof(Publish));
+            MetricsHelper.RecordTotalErrors("Publish");
 
-            LogError(nameof(Publish), ex);
+            LogError("Publish", ex);
             throw;
         }
     }
 
-    public override ResponseHeader Read(
+    public override async Task<ReadResponse> ReadAsync(
+        SecureChannelContext secureChannelContext,
         RequestHeader requestHeader,
         double maxAge,
         TimestampsToReturn timestampsToReturn,
         ReadValueIdCollection nodesToRead,
-        out DataValueCollection results,
-        out DiagnosticInfoCollection diagnosticInfos)
+        CancellationToken ct)
     {
         _countRead++;
 
-        results = default;
-        diagnosticInfos = default;
-
         try
         {
-            var responseHeader = base.Read(requestHeader, maxAge, timestampsToReturn, nodesToRead, out results, out diagnosticInfos);
+            var response = await base.ReadAsync(secureChannelContext, requestHeader, maxAge, timestampsToReturn, nodesToRead, ct).ConfigureAwait(false);
 
-            LogSuccess(nameof(Read));
+            LogSuccess("Read");
 
-            return responseHeader;
+            return response;
         }
         catch (Exception ex)
         {
-            MetricsHelper.RecordTotalErrors(nameof(Read));
+            MetricsHelper.RecordTotalErrors("Read");
 
-            LogError(nameof(Read), ex);
+            LogError("Read", ex);
             throw;
         }
     }
 
-    public override ResponseHeader Write(RequestHeader requestHeader, WriteValueCollection nodesToWrite, out StatusCodeCollection results, out DiagnosticInfoCollection diagnosticInfos)
+    public override async Task<WriteResponse> WriteAsync(
+        SecureChannelContext secureChannelContext,
+        RequestHeader requestHeader,
+        WriteValueCollection nodesToWrite,
+        CancellationToken ct)
     {
         _countWrite++;
 
         try
         {
-            var responseHeader = base.Write(requestHeader, nodesToWrite, out results, out diagnosticInfos);
+            var response = await base.WriteAsync(secureChannelContext, requestHeader, nodesToWrite, ct).ConfigureAwait(false);
 
-            LogSuccess(nameof(Write));
+            LogSuccess("Write");
 
-            return responseHeader;
+            return response;
         }
         catch (Exception ex)
         {
-            MetricsHelper.RecordTotalErrors(nameof(Write));
+            MetricsHelper.RecordTotalErrors("Write");
 
-            LogError(nameof(Write), ex);
+            LogError("Write", ex);
             throw;
         }
     }
@@ -426,20 +394,6 @@ public partial class PlcServer : StandardServer
     protected override MasterNodeManager CreateMasterNodeManager(IServerInternal server, ApplicationConfiguration configuration)
     {
         var nodeManagers = new List<INodeManager>();
-
-        // When used via NuGet package in-memory, the server needs to use its own encodable factory.
-        // Otherwise the client will not load the type definitions for decoding correctly. There is currently no public
-        // API to set the encodable factory and it is not possible to provide an own implementation, because other classes
-        // require the StandardServer or ServerInternalData as objects, so we need to use reflection to set it.
-        var serverInternalDataField = typeof(StandardServer).GetField("m_serverInternal", BindingFlags.Instance | BindingFlags.NonPublic);
-        if (serverInternalDataField != null)
-        {
-            var encodableFactoryField = serverInternalDataField.FieldType.GetField("m_factory", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (encodableFactoryField != null)
-            {
-                encodableFactoryField.SetValue(server, new EncodeableFactory(false));
-            }
-        }
 
         // Add encodable complex types.
         server.Factory.AddEncodeableTypes(Assembly.GetExecutingAssembly());
@@ -532,7 +486,7 @@ public partial class PlcServer : StandardServer
     /// </summary>
     protected override ResourceManager CreateResourceManager(IServerInternal server, ApplicationConfiguration configuration)
     {
-        var resourceManager = new ResourceManager(server, configuration);
+        var resourceManager = new ResourceManager(configuration);
 
         FieldInfo[] fields = typeof(StatusCodes).GetFields(BindingFlags.Public | BindingFlags.Static);
 
@@ -567,28 +521,12 @@ public partial class PlcServer : StandardServer
         base.OnServerStarted(server);
 
         // request notifications when the user identity is changed, all valid users are accepted by default.
-        server.SessionManager.ImpersonateUser += new ImpersonateEventHandler(SessionManager_ImpersonateUser);
+        server.SessionManager.ImpersonateUser += SessionManager_ImpersonateUser;
 
         if (Config.RunInChaosMode)
         {
             LogStartChaos();
             Chaos = true;
-        }
-    }
-
-    /// <inheritdoc/>
-    protected override void ProcessRequest(IEndpointIncomingRequest request, object calldata)
-    {
-        if (request is IAsyncResult asyncResult &&
-            asyncResult.AsyncState is object[] asyncStateArray &&
-            asyncStateArray[0] is TcpServerChannel channel)
-        {
-            using var scope = _logger.BeginScope("ChannelId:\"{ChannelId}\"", channel.Id);
-            base.ProcessRequest(request, calldata);
-        }
-        else
-        {
-            base.ProcessRequest(request, calldata);
         }
     }
 
@@ -598,12 +536,12 @@ public partial class PlcServer : StandardServer
     /// <remarks>
     /// This method is called before any shutdown processing occurs.
     /// </remarks>
-    protected override void OnServerStopping()
+    protected override async ValueTask OnServerStoppingAsync(CancellationToken cancellationToken = default)
     {
         try
         {
             // check for connected clients
-            IList<Session> currentSessions = ServerInternal.SessionManager.GetSessions();
+            IList<ISession> currentSessions = ServerInternal.SessionManager.GetSessions();
 
             if (currentSessions.Count > 0)
             {
@@ -623,7 +561,7 @@ public partial class PlcServer : StandardServer
                     //    status.Value.SecondsTillShutdown = secondsUntilShutdown;
                     //});
 
-                    Thread.Sleep(TimeSpan.FromSeconds(1));
+                    await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
                 }
             }
         }
@@ -632,7 +570,7 @@ public partial class PlcServer : StandardServer
             // ignore error during shutdown procedure
         }
 
-        base.OnServerStopping();
+        await base.OnServerStoppingAsync(cancellationToken).ConfigureAwait(false);
 
         if (Config.RunInChaosMode)
         {
@@ -744,7 +682,7 @@ public partial class PlcServer : StandardServer
         {
             NotifySubscriptionExpiration(subscriptionId);
         }
-        CurrentInstance.DeleteSubscription(subscriptionId);
+        CurrentInstance.DeleteSubscriptionAsync(subscriptionId).AsTask().GetAwaiter().GetResult();
     }
 
     private void NotifySubscriptionExpiration(uint subscriptionId)
@@ -871,7 +809,10 @@ public partial class PlcServer : StandardServer
         StatusCodes.BadRequestInterrupted,
     };
 
-    protected override OperationContext ValidateRequest(RequestHeader requestHeader, RequestType requestType)
+    protected override OperationContext ValidateRequest(
+        SecureChannelContext secureChannelContext,
+        RequestHeader requestHeader,
+        RequestType requestType)
     {
         if (InjectErrorResponseRate != 0)
         {
@@ -883,7 +824,7 @@ public partial class PlcServer : StandardServer
                 throw new ServiceResultException(error);
             }
         }
-        return base.ValidateRequest(requestHeader, requestType);
+        return base.ValidateRequest(secureChannelContext, requestHeader, requestType);
     }
 #pragma warning restore CA5394 // Do not use insecure randomness
 
