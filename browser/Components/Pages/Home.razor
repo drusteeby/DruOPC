@@ -451,7 +451,7 @@
         switch (_identityMode)
         {
             case "username":
-                return new UserIdentity(_userName, _password);
+                return new UserIdentity(_userName, System.Text.Encoding.UTF8.GetBytes(_password));
 
             case "certificate":
                 if (_certBytes is not { Length: > 0 })

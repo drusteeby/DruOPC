@@ -81,11 +81,17 @@ public class AlarmAckTests : SubscriptionTestsBase
         {
         }
 
-        await Session.CallAsync(
-            ObjectTypeIds.ConditionType,
-            MethodIds.ConditionType_ConditionRefresh,
-            default,
-            SubscriptionId).ConfigureAwait(false);
+        var response = await Session.CallAsync(
+            requestHeader: null,
+            [new CallMethodRequest
+            {
+                ObjectId = ObjectTypeIds.ConditionType,
+                MethodId = MethodIds.ConditionType_ConditionRefresh,
+                InputArguments = new VariantCollection { new Variant(SubscriptionId) },
+            }],
+            CancellationToken.None).ConfigureAwait(false);
+
+        response.Results.Should().ContainSingle().Which.StatusCode.Should().Be(StatusCodes.Good);
 
         var sw = Stopwatch.StartNew();
         while (_conditions.IsEmpty && sw.Elapsed < TimeSpan.FromSeconds(10))
@@ -121,11 +127,20 @@ public class AlarmAckTests : SubscriptionTestsBase
         candidate.ConditionId.Should().NotBeNull("the alarm simulation should produce unacknowledged conditions");
 
         // Throws on a bad result; passing means the server accepted the acknowledgement.
-        await Session.CallAsync(
-            candidate.ConditionId,
-            MethodIds.AcknowledgeableConditionType_Acknowledge,
-            default,
-            candidate.EventId,
-            new LocalizedText("Acknowledged by AlarmAckTests")).ConfigureAwait(false);
+        var response = await Session.CallAsync(
+            requestHeader: null,
+            [new CallMethodRequest
+            {
+                ObjectId = candidate.ConditionId,
+                MethodId = MethodIds.AcknowledgeableConditionType_Acknowledge,
+                InputArguments = new VariantCollection
+                {
+                    new Variant(candidate.EventId),
+                    new Variant(new LocalizedText("Acknowledged by AlarmAckTests")),
+                },
+            }],
+            CancellationToken.None).ConfigureAwait(false);
+
+        response.Results.Should().ContainSingle().Which.StatusCode.Should().Be(StatusCodes.Good);
     }
 }

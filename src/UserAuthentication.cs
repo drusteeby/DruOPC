@@ -43,7 +43,7 @@ public partial class PlcServer
     private IUserIdentity VerifyPassword(UserNameIdentityToken userNameToken)
     {
         string userName = userNameToken.UserName;
-        string password = userNameToken.DecryptedPassword;
+        string password = System.Text.Encoding.UTF8.GetString(userNameToken.DecryptedPassword);
         if (string.IsNullOrEmpty(userName))
         {
             // an empty username is not accepted.
@@ -79,7 +79,9 @@ public partial class PlcServer
                 StatusCodes.BadUserAccessDenied,
                 "InvalidPassword",
                 LoadServerProperties().ProductUri,
-                new LocalizedText(info)));
+                new LocalizedText(info),
+                additionalInfo: null,
+                innerResult: null));
         }
 
         return new UserIdentity(userNameToken);
@@ -88,7 +90,7 @@ public partial class PlcServer
     /// <summary>
     /// Called when a client tries to change its user identity.
     /// </summary>
-    private void SessionManager_ImpersonateUser(Session session, ImpersonateEventArgs args)
+    private void SessionManager_ImpersonateUser(ISession session, ImpersonateEventArgs args)
     {
         if (args.NewIdentity is AnonymousIdentityToken anonymousToken)
         {
@@ -162,10 +164,12 @@ public partial class PlcServer
 
             // create an exception with a vendor defined sub-code.
             throw new ServiceResultException(new ServiceResult(
-                result,
+                (uint)result,
                 info.Key,
-                namespaceUri: "http://opcfoundation.org/UA/Sample/",
-                new LocalizedText(info)));
+                "http://opcfoundation.org/UA/Sample/",
+                new LocalizedText(info),
+                additionalInfo: null,
+                innerResult: null));
         }
     }
 

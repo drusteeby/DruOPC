@@ -65,7 +65,7 @@ public sealed class UaApplicationProvider
                 AutoAcceptUntrustedCertificates = false,
                 AddAppCertToTrustedStore = true,
                 RejectSHA1SignedCertificates = false,
-                MinimumCertificateKeySize = 1024,
+                MinimumCertificateKeySize = 2048,
             },
             TransportConfigurations = new TransportConfigurationCollection(),
             TransportQuotas = new TransportQuotas

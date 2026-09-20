@@ -119,7 +119,7 @@ public sealed class UaBrowserService
     /// </summary>
     public async Task<List<UaAttributeRow>> ReadAttributesAsync(NodeId nodeId, CancellationToken ct = default)
     {
-        uint[] attributeIds = Attributes.GetIdentifiers();
+        uint[] attributeIds = Attributes.Identifiers.ToArray();
 
         var readValueIds = new ReadValueIdCollection(
             attributeIds.Select(id => new ReadValueId { NodeId = nodeId, AttributeId = id }));
