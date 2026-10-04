@@ -14,6 +14,8 @@
     <PackageTags>Industrial;Industrial IoT;Manufacturing;Azure;IoT;.NET</PackageTags>
     <HighEntropyVA>true</HighEntropyVA>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- NU1902 flags the build-time-only Microsoft.Build.Tasks.Git pulled in by SourceLink; keep it as a warning. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1902</WarningsNotAsErrors>
     <NeutralLanguage>en-US</NeutralLanguage>
     <IsPackable>false</IsPackable>
     <InvariantGlobalization>true</InvariantGlobalization>
