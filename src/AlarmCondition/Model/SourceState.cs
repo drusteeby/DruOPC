@@ -729,10 +729,7 @@ namespace AlarmCondition
         /// <summary>
         /// Gets the user name associated with the context.
         /// </summary>
-        private static string GetUserName(ISystemContext context)
-        {
-            return context.UserId;
-        }
+        private static string GetUserName(ISystemContext context) => context.UserId;
         #endregion
 
         #region Private Fields

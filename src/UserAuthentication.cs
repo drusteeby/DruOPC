@@ -5,6 +5,7 @@ using Opc.Ua;
 using Opc.Ua.Server;
 using System;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Threading.Tasks;
 
 public partial class PlcServer
@@ -43,7 +44,7 @@ public partial class PlcServer
     private IUserIdentity VerifyPassword(UserNameIdentityToken userNameToken)
     {
         string userName = userNameToken.UserName;
-        string password = System.Text.Encoding.UTF8.GetString(userNameToken.DecryptedPassword);
+        string password = Encoding.UTF8.GetString(userNameToken.DecryptedPassword);
         if (string.IsNullOrEmpty(userName))
         {
             // an empty username is not accepted.
