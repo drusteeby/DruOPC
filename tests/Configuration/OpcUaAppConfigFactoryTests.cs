@@ -321,4 +321,46 @@ public class OpcUaAppConfigFactoryTests
             try { Directory.Delete(root, recursive: true); } catch { };
         }
     }
+
+    [Test]
+    public async Task ConfigureAsync_HostnameChanges_RegeneratesApplicationCertificate()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "opcplc_test_pki_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var config = new OpcPlcConfiguration();
+            config.OpcUa.OpcOwnCertStoreType = FlatDirectoryCertificateStore.StoreTypeName;
+            config.OpcUa.OpcOwnCertStorePath = Path.Combine(root, "own");
+            config.OpcUa.OpcTrustedCertStorePath = Path.Combine(root, "trusted");
+            config.OpcUa.OpcRejectedCertStorePath = Path.Combine(root, "rejected");
+            config.OpcUa.OpcIssuerCertStorePath = Path.Combine(root, "issuer");
+            config.OpcUa.OpcTrustedUserCertStorePath = Path.Combine(root, "trusted-user");
+            config.OpcUa.OpcUserIssuerCertStorePath = Path.Combine(root, "issuer-user");
+            config.OpcUa.Hostname = "original-host";
+
+            var loggerMock = new Mock<ILogger>();
+            var loggerFactoryMock = new Mock<ILoggerFactory>();
+            loggerFactoryMock.Setup(f => f.CreateLogger(It.IsAny<string>())).Returns(loggerMock.Object);
+
+            var originalConfiguration = await new OpcUaAppConfigFactory(config, loggerMock.Object, loggerFactoryMock.Object)
+                .ConfigureAsync().ConfigureAwait(false);
+            string originalThumbprint = originalConfiguration.SecurityConfiguration.ApplicationCertificate.Certificate.Thumbprint;
+
+            config.OpcUa.Hostname = "new-host";
+            var updatedConfiguration = await new OpcUaAppConfigFactory(config, loggerMock.Object, loggerFactoryMock.Object)
+                .ConfigureAsync().ConfigureAwait(false);
+
+            updatedConfiguration.SecurityConfiguration.ApplicationCertificate.Certificate.Thumbprint
+                .Should().NotBe(originalThumbprint);
+
+            using var store = updatedConfiguration.SecurityConfiguration.ApplicationCertificate.OpenStore();
+            var certificates = await store.Enumerate().ConfigureAwait(false);
+            certificates.Should().ContainSingle(certificate => certificate.Thumbprint == updatedConfiguration.SecurityConfiguration.ApplicationCertificate.Certificate.Thumbprint);
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { };
+        }
+    }
 }

@@ -157,10 +157,39 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
         }
 
         // Check the certificate, create new self-signed certificate if necessary.
-        bool isCertValid = await application.CheckApplicationInstanceCertificates(silent: true, lifeTimeInMonths: CertificateFactory.DefaultLifeTime).ConfigureAwait(false);
+        bool isCertValid;
+        try
+        {
+            isCertValid = await application.CheckApplicationInstanceCertificates(silent: true, lifeTimeInMonths: CertificateFactory.DefaultLifeTime).ConfigureAwait(false);
+        }
+        catch (ServiceResultException) when (certificate != null)
+        {
+            isCertValid = false;
+        }
+
         if (!isCertValid)
         {
-            throw new Exception("Application certificate invalid.");
+            _logger.LogWarning(
+                "Application certificate with thumbprint {Thumbprint} does not match the configured hostname {Hostname}. Regenerating it.",
+                certificate?.Thumbprint,
+                _config.OpcUa.Hostname);
+
+            if (certificate != null)
+            {
+                using ICertificateStore certificateStore = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.ApplicationCertificate.OpenStore();
+                await certificateStore.Delete(certificate.Thumbprint).ConfigureAwait(false);
+                _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.ApplicationCertificate.Certificate = null;
+            }
+
+            isCertValid = await application.CheckApplicationInstanceCertificates(silent: true, lifeTimeInMonths: CertificateFactory.DefaultLifeTime).ConfigureAwait(false);
+            if (!isCertValid)
+            {
+                throw new Exception("Application certificate invalid.");
+            }
+
+            certificate = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.ApplicationCertificate.Certificate;
+            _logger.LogInformation("Application certificate with thumbprint {Thumbprint} regenerated",
+                certificate.Thumbprint);
         }
 
         if (certificate == null)
