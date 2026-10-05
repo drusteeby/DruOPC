@@ -15,7 +15,6 @@ public static class OtelHelper
     {
         _ = Sdk.CreateTracerProviderBuilder()
             .AddAspNetCoreInstrumentation()
-            .AddSource(EndpointBase.ActivitySourceName)
             .SetResourceBuilder(ResourceBuilder.CreateDefault()
                 .AddService(serviceName))
             .AddOtlpExporter(exporterOptions => {

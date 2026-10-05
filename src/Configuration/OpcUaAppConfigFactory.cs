@@ -157,7 +157,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
         }
 
         // Check the certificate, create new self-signed certificate if necessary.
-        bool isCertValid = await application.CheckApplicationInstanceCertificates(silent: true, lifeTimeInMonths: CertificateFactory.DefaultLifeTime).ConfigureAwait(false);
+        bool isCertValid = await application.CheckApplicationInstanceCertificatesAsync(silent: true, lifeTimeInMonths: CertificateFactory.DefaultLifeTime).ConfigureAwait(false);
         if (!isCertValid)
         {
             throw new Exception("Application certificate invalid.");
@@ -240,7 +240,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
             .SetAutoAcceptUntrustedCertificates(_config.OpcUa.AutoAcceptCerts)
             .SetRejectUnknownRevocationStatus(!_config.OpcUa.DontRejectUnknownRevocationStatus)
             .SetRejectSHA1SignedCertificates(false)
-            .SetMinimumCertificateKeySize(1024)
+            .SetMinimumCertificateKeySize(2048)
             .SetAddAppCertToTrustedStore(_config.OpcUa.TrustMyself);
 
         var securityConfiguration = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration;
@@ -297,7 +297,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
 
         }
 
-        _config.OpcUa.ApplicationConfiguration = await options.Create().ConfigureAwait(false);
+        _config.OpcUa.ApplicationConfiguration = await options.CreateAsync().ConfigureAwait(false);
 
         _logger.LogInformation("Application Certificate store type is: {StoreType}", securityConfiguration.ApplicationCertificate.StoreType);
         _logger.LogInformation("Application Certificate store path is: {StorePath}", securityConfiguration.ApplicationCertificate.StorePath);
@@ -396,7 +396,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
                 // fetch the certificate with the private key
                 try
                 {
-                    certificate = await _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.ApplicationCertificate.LoadPrivateKey(null).ConfigureAwait(false);
+                    certificate = await _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.ApplicationCertificate.LoadPrivateKeyAsync(null).ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
@@ -468,7 +468,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
         try
         {
             using ICertificateStore certStore = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.ApplicationCertificate.OpenStore();
-            var certs = await certStore.Enumerate().ConfigureAwait(false);
+            var certs = await certStore.EnumerateAsync().ConfigureAwait(false);
             int certNum = 1;
             _logger.LogInformation("Application store contains {Count} certs", certs.Count);
 
@@ -489,7 +489,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
         try
         {
             using ICertificateStore certStore = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.TrustedIssuerCertificates.OpenStore();
-            var certs = await certStore.Enumerate().ConfigureAwait(false);
+            var certs = await certStore.EnumerateAsync().ConfigureAwait(false);
             int certNum = 1;
             _logger.LogInformation("Trusted issuer store contains {Count} certs", certs.Count);
             foreach (var cert in certs)
@@ -502,7 +502,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
 
             if (certStore.SupportsCRLs)
             {
-                var crls = await certStore.EnumerateCRLs().ConfigureAwait(false);
+                var crls = await certStore.EnumerateCRLsAsync().ConfigureAwait(false);
                 int crlNum = 1;
                 _logger.LogInformation("Trusted issuer store has {Count} CRLs", crls.Count);
 
@@ -524,7 +524,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
         try
         {
             using ICertificateStore certStore = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.TrustedPeerCertificates.OpenStore();
-            var certs = await certStore.Enumerate().ConfigureAwait(false);
+            var certs = await certStore.EnumerateAsync().ConfigureAwait(false);
             int certNum = 1;
             _logger.LogInformation("Trusted peer store contains {Count} certs", certs.Count);
 
@@ -538,7 +538,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
 
             if (certStore.SupportsCRLs)
             {
-                var crls = await certStore.EnumerateCRLs().ConfigureAwait(false);
+                var crls = await certStore.EnumerateCRLsAsync().ConfigureAwait(false);
                 int crlNum = 1;
                 _logger.LogInformation("Trusted peer store has {Count} CRLs", crls.Count);
 
@@ -560,7 +560,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
         try
         {
             using ICertificateStore certStore = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.TrustedUserCertificates.OpenStore();
-            var certs = await certStore.Enumerate().ConfigureAwait(false);
+            var certs = await certStore.EnumerateAsync().ConfigureAwait(false);
             int certNum = 1;
             _logger.LogInformation("Trusted user store contains {Count} certs", certs.Count);
 
@@ -574,7 +574,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
 
             if (certStore.SupportsCRLs)
             {
-                var crls = await certStore.EnumerateCRLs().ConfigureAwait(false);
+                var crls = await certStore.EnumerateCRLsAsync().ConfigureAwait(false);
                 int crlNum = 1;
                 _logger.LogInformation("Trusted user store has {Count} CRLs", crls.Count);
 
@@ -596,7 +596,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
         try
         {
             using ICertificateStore certStore = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.UserIssuerCertificates.OpenStore();
-            var certs = await certStore.Enumerate().ConfigureAwait(false);
+            var certs = await certStore.EnumerateAsync().ConfigureAwait(false);
             int certNum = 1;
             _logger.LogInformation("User issuer store contains {Count} certs", certs.Count);
 
@@ -610,7 +610,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
 
             if (certStore.SupportsCRLs)
             {
-                var crls = await certStore.EnumerateCRLs().ConfigureAwait(false);
+                var crls = await certStore.EnumerateCRLsAsync().ConfigureAwait(false);
                 int crlNum = 1;
                 _logger.LogInformation("User issuer store has {Count} CRLs", crls.Count);
 
@@ -632,7 +632,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
         try
         {
             using ICertificateStore certStore = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.RejectedCertificateStore.OpenStore();
-            var certs = await certStore.Enumerate().ConfigureAwait(false);
+            var certs = await certStore.EnumerateAsync().ConfigureAwait(false);
             int certNum = 1;
             _logger.LogInformation("Rejected certificate store contains {Count} certs", certs.Count);
 
@@ -693,10 +693,10 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
             using ICertificateStore trustedStore = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.TrustedPeerCertificates.OpenStore();
             foreach (var thumbprint in thumbprintsToRemove)
             {
-                var certToRemove = await trustedStore.FindByThumbprint(thumbprint).ConfigureAwait(false);
+                var certToRemove = await trustedStore.FindByThumbprintAsync(thumbprint).ConfigureAwait(false);
                 if (certToRemove?.Count > 0)
                 {
-                    if (!await trustedStore.Delete(thumbprint).ConfigureAwait(false))
+                    if (!await trustedStore.DeleteAsync(thumbprint).ConfigureAwait(false))
                     {
                         _logger.LogWarning("Failed to remove certificate with thumbprint '{Thumbprint}' from the trusted peer store", thumbprint);
                     }
@@ -719,10 +719,10 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
             using ICertificateStore issuerStore = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.TrustedIssuerCertificates.OpenStore();
             foreach (var thumbprint in thumbprintsToRemove)
             {
-                var certToRemove = await issuerStore.FindByThumbprint(thumbprint).ConfigureAwait(false);
+                var certToRemove = await issuerStore.FindByThumbprintAsync(thumbprint).ConfigureAwait(false);
                 if (certToRemove?.Count > 0)
                 {
-                    if (!await issuerStore.Delete(thumbprint).ConfigureAwait(false))
+                    if (!await issuerStore.DeleteAsync(thumbprint).ConfigureAwait(false))
                     {
                         _logger.LogWarning("Failed to delete certificate with thumbprint '{Thumbprint}' from the trusted issuer store", thumbprint);
                     }
@@ -804,7 +804,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
                 {
                     try
                     {
-                        await issuerStore.Add(certificateToAdd).ConfigureAwait(false);
+                        await issuerStore.AddAsync(certificateToAdd).ConfigureAwait(false);
                         _logger.LogInformation("Certificate '{SubjectName}' and thumbprint '{Thumbprint}' was added to the trusted issuer store", certificateToAdd.SubjectName.Name, certificateToAdd.Thumbprint);
                     }
                     catch (ArgumentException ex)
@@ -829,7 +829,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
                 {
                     try
                     {
-                        await trustedStore.Add(certificateToAdd).ConfigureAwait(false);
+                        await trustedStore.AddAsync(certificateToAdd).ConfigureAwait(false);
                         _logger.LogInformation("Certificate '{SubjectName}' and thumbprint '{Thumbprint}' was added to the trusted peer store", certificateToAdd.SubjectName.Name, certificateToAdd.Thumbprint);
                     }
                     catch (ArgumentException ex)
@@ -911,7 +911,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
                 {
                     try
                     {
-                        await issuerStore.Add(certificateToAdd).ConfigureAwait(false);
+                        await issuerStore.AddAsync(certificateToAdd).ConfigureAwait(false);
                         _logger.LogInformation("Certificate '{SubjectName}' and thumbprint '{Thumbprint}' was added to the user issuer store", certificateToAdd.SubjectName.Name, certificateToAdd.Thumbprint);
                     }
                     catch (ArgumentException ex)
@@ -935,7 +935,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
                 {
                     try
                     {
-                        await trustedUserStore.Add(certificateToAdd).ConfigureAwait(false);
+                        await trustedUserStore.AddAsync(certificateToAdd).ConfigureAwait(false);
                         _logger.LogInformation("Certificate '{SubjectName}' and thumbprint '{Thumbprint}' was added to the trusted user store", certificateToAdd.SubjectName.Name, certificateToAdd.Thumbprint);
                     }
                     catch (ArgumentException ex)
@@ -1000,7 +1000,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
         using (ICertificateStore trustedStore = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.TrustedPeerCertificates.OpenStore())
         {
             bool trustedCrlIssuer = false;
-            var trustedCertificates = await trustedStore.Enumerate().ConfigureAwait(false);
+            var trustedCertificates = await trustedStore.EnumerateAsync().ConfigureAwait(false);
 
             foreach (var trustedCertificate in trustedCertificates)
             {
@@ -1012,12 +1012,12 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
                         _logger.LogInformation("Remove the current CRL from the trusted peer store");
                         trustedCrlIssuer = true;
 
-                        var crlsToRemove = await trustedStore.EnumerateCRLs(trustedCertificate).ConfigureAwait(false);
+                        var crlsToRemove = await trustedStore.EnumerateCRLsAsync(trustedCertificate).ConfigureAwait(false);
                         foreach (var crlToRemove in crlsToRemove)
                         {
                             try
                             {
-                                if (!await trustedStore.DeleteCRL(crlToRemove).ConfigureAwait(false))
+                                if (!await trustedStore.DeleteCRLAsync(crlToRemove).ConfigureAwait(false))
                                 {
                                     _logger.LogWarning("Failed to remove CRL issued by '{Issuer}' from the trusted peer store", crlToRemove.Issuer);
                                 }
@@ -1042,7 +1042,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
             {
                 try
                 {
-                    await trustedStore.AddCRL(newCrl).ConfigureAwait(false);
+                    await trustedStore.AddCRLAsync(newCrl).ConfigureAwait(false);
                     _logger.LogInformation("The new CRL issued by '{Issuer}' was added to the trusted peer store", newCrl.Issuer);
                 }
                 catch (Exception e)
@@ -1057,7 +1057,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
         using (ICertificateStore issuerStore = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.TrustedIssuerCertificates.OpenStore())
         {
             bool trustedCrlIssuer = false;
-            var issuerCertificates = await issuerStore.Enumerate().ConfigureAwait(false);
+            var issuerCertificates = await issuerStore.EnumerateAsync().ConfigureAwait(false);
 
             foreach (var issuerCertificate in issuerCertificates)
             {
@@ -1068,13 +1068,13 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
                         // The issuer of the new CRL is trusted. Delete the CRLs of the issuer in the trusted store.
                         _logger.LogInformation("Remove the current CRL from the trusted issuer store");
                         trustedCrlIssuer = true;
-                        var crlsToRemove = await issuerStore.EnumerateCRLs(issuerCertificate).ConfigureAwait(false);
+                        var crlsToRemove = await issuerStore.EnumerateCRLsAsync(issuerCertificate).ConfigureAwait(false);
 
                         foreach (var crlToRemove in crlsToRemove)
                         {
                             try
                             {
-                                if (!await issuerStore.DeleteCRL(crlToRemove).ConfigureAwait(false))
+                                if (!await issuerStore.DeleteCRLAsync(crlToRemove).ConfigureAwait(false))
                                 {
                                     _logger.LogWarning("Failed to remove the current CRL issued by '{Issuer}' from the trusted issuer store", crlToRemove.Issuer);
                                 }
@@ -1099,7 +1099,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
             {
                 try
                 {
-                    await issuerStore.AddCRL(newCrl).ConfigureAwait(false);
+                    await issuerStore.AddCRLAsync(newCrl).ConfigureAwait(false);
                     _logger.LogInformation("The new CRL issued by '{Issuer}' was added to the trusted issuer store", newCrl.Issuer);
                 }
                 catch (Exception e)
@@ -1215,7 +1215,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
                 var verificationCollection = new CertificateIdentifierCollection();
                 using (ICertificateStore issuerStore = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.TrustedPeerCertificates.OpenStore())
                 {
-                    var certs = await issuerStore.Enumerate().ConfigureAwait(false);
+                    var certs = await issuerStore.EnumerateAsync().ConfigureAwait(false);
                     foreach (var cert in certs)
                     {
                         verificationCollection.Add(new CertificateIdentifier(cert));
@@ -1223,7 +1223,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
                 }
                 using (ICertificateStore trustedStore = _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.TrustedPeerCertificates.OpenStore())
                 {
-                    var certs = await trustedStore.Enumerate().ConfigureAwait(false);
+                    var certs = await trustedStore.EnumerateAsync().ConfigureAwait(false);
                     foreach (var cert in certs)
                     {
                         verificationCollection.Add(new CertificateIdentifier(cert));
@@ -1280,7 +1280,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
             {
                 if (hasApplicationCertificate)
                 {
-                    X509Certificate2 certWithPrivateKey = await _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.ApplicationCertificate.LoadPrivateKey(certificatePassword).ConfigureAwait(false);
+                    X509Certificate2 certWithPrivateKey = await _config.OpcUa.ApplicationConfiguration.SecurityConfiguration.ApplicationCertificate.LoadPrivateKeyAsync(certificatePassword.ToCharArray()).ConfigureAwait(false);
                     newCertificateWithPrivateKey = CertificateFactory.CreateCertificateWithPrivateKey(newCertificate, certWithPrivateKey);
                     newCertFormat = "DER";
                 }
@@ -1319,7 +1319,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
             _logger.LogInformation("Remove the existing application certificate");
             try
             {
-                if (hasApplicationCertificate && !await appStore.Delete(currentApplicationCertificate.Thumbprint).ConfigureAwait(false))
+                if (hasApplicationCertificate && !await appStore.DeleteAsync(currentApplicationCertificate.Thumbprint).ConfigureAwait(false))
                 {
                     _logger.LogWarning("Removing the existing application certificate with thumbprint '{CurrentThumbprint}' failed", currentApplicationCertificate.Thumbprint);
                 }
@@ -1330,7 +1330,7 @@ public class OpcUaAppConfigFactory(OpcPlcConfiguration config, ILogger logger, I
             }
             try
             {
-                await appStore.Add(newCertificateWithPrivateKey).ConfigureAwait(false);
+                await appStore.AddAsync(newCertificateWithPrivateKey).ConfigureAwait(false);
                 _logger.LogInformation("The new application certificate '{SubjectName}' and thumbprint '{Thumbprint}' was added to the application certificate store", newCertificateWithPrivateKey.SubjectName.Name, newCertificateWithPrivateKey.Thumbprint);
             }
             catch (Exception e)

@@ -1,6 +1,7 @@
 @page "/"
 @rendermode InteractiveServer
 @using Opc.Ua
+@using System.Text
 @using System.Web
 @implements IDisposable
 @inject UaConnection Connection
@@ -451,7 +452,7 @@
         switch (_identityMode)
         {
             case "username":
-                return new UserIdentity(_userName, _password);
+                return new UserIdentity(_userName, Encoding.UTF8.GetBytes(_password));
 
             case "certificate":
                 if (_certBytes is not { Length: > 0 })
