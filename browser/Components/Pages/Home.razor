@@ -78,6 +78,7 @@
 
         <a class="mini-link" title="Open another server in a new window"
            href="@NewWindowLink" target="_blank">⧉ new window</a>
+        <button class="mini" title="Reset saved panel layout" @onclick="ResetPanelLayoutAsync">Reset layout</button>
 
         <span class="conn-status @Connection.State.ToString().ToLowerInvariant()">
             ●
@@ -605,6 +606,20 @@
         }
 
         StateHasChanged();
+    }
+
+    private async Task ResetPanelLayoutAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("druopc.resetPanelLayout");
+        }
+        catch (Exception)
+        {
+            // localStorage unavailable; not critical.
+        }
+
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
     }
 
     private async Task OpenMethodDialogAsync(UaTreeNode methodNode)

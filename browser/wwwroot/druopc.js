@@ -53,5 +53,27 @@ window.druopc = {
             list = [url, ...list.filter(u => u !== url)].slice(0, 8);
             localStorage.setItem("druopc.recentServers", JSON.stringify(list));
         } catch { }
+    },
+
+    getPanelCollapsed: function (panelKey) {
+        try {
+            return localStorage.getItem(`druopc.panelCollapsed.${panelKey}`) === "1";
+        } catch {
+            return false;
+        }
+    },
+
+    setPanelCollapsed: function (panelKey, collapsed) {
+        try {
+            localStorage.setItem(`druopc.panelCollapsed.${panelKey}`, collapsed ? "1" : "0");
+        } catch { }
+    },
+
+    resetPanelLayout: function () {
+        try {
+            localStorage.removeItem("druopc.panelCollapsed.right.selectedNode");
+            localStorage.removeItem("druopc.panelCollapsed.right.attributes");
+            localStorage.removeItem("druopc.panelCollapsed.right.references");
+        } catch { }
     }
 };

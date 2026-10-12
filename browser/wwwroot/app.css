@@ -140,8 +140,14 @@ input:disabled { opacity: 0.5; }
 
 .center-panels > :first-child { flex: 3; }
 .center-panels > :last-child { flex: 2; }
-.right-panels > :first-child { flex: 3; }
-.right-panels > :last-child { flex: 2; }
+
+.right-panels > .selected-node-panel { flex: 2; }
+.right-panels > .attributes-panel { flex: 3; }
+.right-panels > .references-panel { flex: 3; }
+
+.right-panels > .panel.collapsed {
+    flex: 0 0 auto;
+}
 
 .statusbar {
     display: flex;
@@ -317,6 +323,10 @@ ul.tree-children { padding-left: 16px; }
     border-bottom: 1px solid var(--border);
     padding: 8px 12px;
     flex-shrink: 0;
+}
+
+.selected-node-panel .node-bar {
+    border-bottom: none;
 }
 
 .node-bar-title {
