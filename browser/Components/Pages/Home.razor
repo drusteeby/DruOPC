@@ -355,6 +355,7 @@
 
     protected override void OnInitialized()
     {
+        PanelLayout.Initialize();
         Connection.StateChanged += OnConnectionStateChanged;
         State.Notified += OnNotified;
         State.InspectRequested += OnInspectRequested;
@@ -387,9 +388,6 @@
         {
             // localStorage unavailable; not critical.
         }
-
-        // One JS call restores every side panel's saved collapsed state.
-        await PanelLayout.LoadAsync();
 
         // Auto-connect when opened through a deep link.
         if (_deepLinkConnect)

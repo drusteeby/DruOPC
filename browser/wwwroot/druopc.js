@@ -1,5 +1,3 @@
-const PANEL_COLLAPSED_PREFIX = "druopc.panelCollapsed.";
-
 window.druopc = {
     copyText: async function (text) {
         try {
@@ -57,28 +55,10 @@ window.druopc = {
         } catch { }
     },
 
-    // Keys of every panel saved as collapsed, e.g. ["right.attributes"].
-    getCollapsedPanels: function () {
-        try {
-            return Object.keys(localStorage)
-                .filter(k => k.startsWith(PANEL_COLLAPSED_PREFIX) && localStorage.getItem(k) === "1")
-                .map(k => k.slice(PANEL_COLLAPSED_PREFIX.length));
-        } catch {
-            return [];
-        }
-    },
-
-    setPanelCollapsed: function (panelKey, collapsed) {
-        try {
-            localStorage.setItem(PANEL_COLLAPSED_PREFIX + panelKey, collapsed ? "1" : "0");
-        } catch { }
-    },
-
-    resetPanelLayout: function () {
-        try {
-            Object.keys(localStorage)
-                .filter(k => k.startsWith(PANEL_COLLAPSED_PREFIX))
-                .forEach(k => localStorage.removeItem(k));
-        } catch { }
+    // Saved in a cookie (not localStorage) so the server can render the
+    // collapsed panels while prerendering; see PanelLayoutState.
+    setCollapsedPanels: function (panelKeys) {
+        const maxAge = panelKeys.length > 0 ? 60 * 60 * 24 * 365 : 0;
+        document.cookie = `druopc.panelsCollapsed=${panelKeys.join("|")}; path=/; max-age=${maxAge}; samesite=lax`;
     }
 };
