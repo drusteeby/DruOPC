@@ -72,7 +72,7 @@ public class OpcUaAppConfigFactoryTests
 
             // Assert - open the configured trusted user store and find our certificate
             using var store = appConfig.SecurityConfiguration.TrustedUserCertificates.OpenStore();
-            var certs = await store.Enumerate().ConfigureAwait(false);
+            var certs = await store.EnumerateAsync().ConfigureAwait(false);
 
             certs.Should().NotBeNull();
             certs.Count.Should().BeGreaterThanOrEqualTo(1, "Trusted user store should contain at least one certificate");
@@ -131,7 +131,7 @@ public class OpcUaAppConfigFactoryTests
 
             // Assert - open the configured trusted user store and find our certificate
             using var store = appConfig.SecurityConfiguration.TrustedUserCertificates.OpenStore();
-            var certs = await store.Enumerate().ConfigureAwait(false);
+            var certs = await store.EnumerateAsync().ConfigureAwait(false);
 
             certs.Should().NotBeNull();
             certs.Count.Should().BeGreaterThanOrEqualTo(1, "Trusted user store should contain at least one certificate");
@@ -191,7 +191,7 @@ public class OpcUaAppConfigFactoryTests
 
             // Assert
             using var store = appConfig.SecurityConfiguration.UserIssuerCertificates.OpenStore();
-            var certs = await store.Enumerate().ConfigureAwait(false);
+            var certs = await store.EnumerateAsync().ConfigureAwait(false);
 
             certs.Should().NotBeNull();
             certs.Count.Should().BeGreaterThanOrEqualTo(1, "User issuer store should contain at least one certificate");
@@ -253,7 +253,7 @@ public class OpcUaAppConfigFactoryTests
 
             // Assert - open the configured user issuer store and find our certificate
             using var store = appConfig.SecurityConfiguration.UserIssuerCertificates.OpenStore();
-            var certs = await store.Enumerate().ConfigureAwait(false);
+            var certs = await store.EnumerateAsync().ConfigureAwait(false);
 
             certs.Should().NotBeNull();
             certs.Count.Should().BeGreaterThanOrEqualTo(1, "User issuer store should contain at least one certificate");
@@ -355,7 +355,7 @@ public class OpcUaAppConfigFactoryTests
                 .Should().NotBe(originalThumbprint);
 
             using var store = updatedConfiguration.SecurityConfiguration.ApplicationCertificate.OpenStore();
-            var certificates = await store.Enumerate().ConfigureAwait(false);
+            var certificates = await store.EnumerateAsync().ConfigureAwait(false);
             certificates.Should().ContainSingle(certificate => certificate.Thumbprint == updatedConfiguration.SecurityConfiguration.ApplicationCertificate.Certificate.Thumbprint);
         }
         finally

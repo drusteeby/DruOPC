@@ -12,6 +12,9 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// Lets PanelLayoutState read its cookie while prerendering.
+builder.Services.AddHttpContextAccessor();
+
 // One OPC UA client application configuration for the whole app.
 builder.Services.AddSingleton<UaApplicationProvider>();
 
@@ -23,6 +26,7 @@ builder.Services.AddScoped<UaEventLog>();
 builder.Services.AddScoped<UaAlarmList>();
 builder.Services.AddScoped<UaHistoryService>();
 builder.Services.AddScoped<BrowserState>();
+builder.Services.AddScoped<PanelLayoutState>();
 
 var app = builder.Build();
 

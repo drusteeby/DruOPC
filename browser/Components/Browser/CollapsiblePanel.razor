@@ -1,0 +1,51 @@
+@implements IDisposable
+@inject PanelLayoutState Layout
+
+<div class="panel @CssClass @(Collapsed ? "collapsed" : "")">
+    <div class="panel-header">
+        <span>@Title</span>
+        <span class="header-controls">
+            @HeaderControls
+            <button class="mini"
+                    title="@(Collapsed ? "Expand" : "Collapse")"
+                    aria-label="@(Collapsed ? $"Expand {Title}" : $"Collapse {Title}")"
+                    aria-expanded="@(Collapsed ? "false" : "true")"
+                    @onclick="() => Layout.ToggleAsync(PanelKey)">@(Collapsed ? "▸" : "▾")</button>
+        </span>
+    </div>
+    @if (!Collapsed)
+    {
+        <div class="panel-body">
+            @ChildContent
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Key the collapsed state is saved under in localStorage.</summary>
+    [Parameter, EditorRequired] public string PanelKey { get; set; } = "";
+
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>Extra buttons shown in the header, left of the collapse toggle.</summary>
+    [Parameter] public RenderFragment? HeaderControls { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool Collapsed => Layout.IsCollapsed(PanelKey);
+
+    protected override void OnInitialized()
+    {
+        Layout.Changed += OnLayoutChanged;
+    }
+
+    private void OnLayoutChanged()
+        => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Layout.Changed -= OnLayoutChanged;
+    }
+}

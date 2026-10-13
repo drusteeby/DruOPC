@@ -4,12 +4,11 @@
 @inject BrowserState State
 @inject IJSRuntime Js
 
-<div class="panel attributes-panel">
-    <div class="panel-header">
-        <span>Attributes</span>
+<CollapsiblePanel PanelKey="right.attributes" Title="Attributes" CssClass="attributes-panel">
+    <HeaderControls>
         <button class="mini" title="Refresh" @onclick="RefreshAsync" disabled="@(State.SelectedNode is null)">⟳</button>
-    </div>
-    <div class="panel-body">
+    </HeaderControls>
+    <ChildContent>
         @if (State.SelectedNode is null)
         {
             <div class="hint">Select a node to inspect its attributes.</div>
@@ -44,8 +43,8 @@
                 </tbody>
             </table>
         }
-    </div>
-</div>
+    </ChildContent>
+</CollapsiblePanel>
 
 @code {
     private List<UaAttributeRow> _rows = [];

@@ -119,9 +119,18 @@ public abstract class SimulatorTestsBase
         return ToNodeId(nodeId);
     }
 
-    protected async Task<T> ReadValueAsync<T>(NodeId nodeId)
+    protected Task<T> ReadValueAsync<T>(NodeId nodeId) => Session.ReadValueAsync<T>(nodeId);
+
+    protected async Task<DataValue> ReadDataValueAsync(NodeId nodeId)
     {
-        return (T)(await Session.ReadValueAsync(nodeId).ConfigureAwait(false)).Value;
+        var response = await Session.ReadAsync(
+            requestHeader: null,
+            maxAge: 0,
+            TimestampsToReturn.Both,
+            [new ReadValueId { NodeId = nodeId, AttributeId = Attributes.Value }],
+            CancellationToken.None).ConfigureAwait(false);
+
+        return response.Results.Single();
     }
 
     protected async Task<StatusCode> WriteValueAsync(NodeId nodeId, object newValue)

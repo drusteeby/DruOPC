@@ -1,6 +1,7 @@
 @page "/"
 @rendermode InteractiveServer
 @using Opc.Ua
+@using System.Text
 @using System.Web
 @implements IDisposable
 @inject UaConnection Connection
@@ -9,6 +10,7 @@
 @inject UaEventLog EventLog
 @inject UaAlarmList Alarms
 @inject BrowserState State
+@inject PanelLayoutState PanelLayout
 @inject IJSRuntime Js
 @inject NavigationManager Navigation
 
@@ -77,6 +79,7 @@
 
         <a class="mini-link" title="Open another server in a new window"
            href="@NewWindowLink" target="_blank">⧉ new window</a>
+        <button class="mini" title="Reset saved panel layout" @onclick="ResetPanelLayoutAsync">Reset layout</button>
 
         <span class="conn-status @Connection.State.ToString().ToLowerInvariant()">
             ●
@@ -352,6 +355,7 @@
 
     protected override void OnInitialized()
     {
+        PanelLayout.Initialize();
         Connection.StateChanged += OnConnectionStateChanged;
         State.Notified += OnNotified;
         State.InspectRequested += OnInspectRequested;
@@ -451,7 +455,7 @@
         switch (_identityMode)
         {
             case "username":
-                return new UserIdentity(_userName, _password);
+                return new UserIdentity(_userName, Encoding.UTF8.GetBytes(_password));
 
             case "certificate":
                 if (_certBytes is not { Length: > 0 })
@@ -605,6 +609,9 @@
 
         StateHasChanged();
     }
+
+    private Task ResetPanelLayoutAsync()
+        => PanelLayout.ResetAsync();
 
     private async Task OpenMethodDialogAsync(UaTreeNode methodNode)
     {

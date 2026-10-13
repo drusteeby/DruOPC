@@ -8,9 +8,9 @@ using Opc.Ua;
 public sealed class FlatDirectoryCertificateStoreType : ICertificateStoreType
 {
     /// <inheritdoc/>
-    public ICertificateStore CreateStore()
+    public ICertificateStore CreateStore(ITelemetryContext telemetry)
     {
-        return new FlatDirectoryCertificateStore();
+        return new FlatDirectoryCertificateStore(telemetry);
     }
 
     /// <inheritdoc/>

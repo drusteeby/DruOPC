@@ -3,12 +3,11 @@
 @inject UaBrowserService Browser
 @inject BrowserState State
 
-<div class="panel references-panel">
-    <div class="panel-header">
-        <span>References</span>
+<CollapsiblePanel PanelKey="right.references" Title="References" CssClass="references-panel">
+    <HeaderControls>
         <button class="mini" title="Refresh" @onclick="RefreshAsync" disabled="@(State.SelectedNode is null)">⟳</button>
-    </div>
-    <div class="panel-body">
+    </HeaderControls>
+    <ChildContent>
         @if (State.SelectedNode is null)
         {
             <div class="hint">Select a node to list its references.</div>
@@ -19,7 +18,7 @@
         }
         else
         {
-            <table class="grid">
+            <table class="grid references-grid">
                 <thead>
                     <tr><th></th><th>Reference</th><th>Target</th><th>Class</th><th>Type definition</th></tr>
                 </thead>
@@ -47,8 +46,8 @@
                 </tbody>
             </table>
         }
-    </div>
-</div>
+    </ChildContent>
+</CollapsiblePanel>
 
 @code {
     private List<UaReferenceRow> _rows = [];

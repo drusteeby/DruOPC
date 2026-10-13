@@ -232,7 +232,7 @@ public sealed class UaConnection : IAsyncDisposable
         using var cert = X509CertificateLoader.LoadCertificate(pending.RawData);
         using (var store = config.SecurityConfiguration.TrustedPeerCertificates.OpenStore())
         {
-            await store.Add(cert).ConfigureAwait(false);
+            await store.AddAsync(cert, [], CancellationToken.None).ConfigureAwait(false);
         }
 
         _sessionTrustedThumbprints.Add(pending.Thumbprint);

@@ -130,7 +130,7 @@ public class SimSourceNodeState : BaseObjectState
         node.ConditionName.Value = node.SymbolicName;
         node.Time.Value = DateTime.UtcNow;
         node.ReceiveTime.Value = node.Time.Value;
-        node.BranchId.Value = branchId;
+        node.BranchId.Value = branchId ?? NodeId.Null;
 
         // don't add branches to the address space.
         if (NodeId.IsNull(branchId))
@@ -143,6 +143,8 @@ public class SimSourceNodeState : BaseObjectState
 
     private static void CreateAlarmSpecificElements(ISystemContext context, AlarmConditionState node, NodeId branchId)
     {
+        node.AckedState = new TwoStateVariableState(node);
+        node.Acknowledge = new AddCommentMethodState(node);
         node.ConfirmedState = new TwoStateVariableState(node);
         node.Confirm = new AddCommentMethodState(node);
 
