@@ -53,5 +53,12 @@ window.druopc = {
             list = [url, ...list.filter(u => u !== url)].slice(0, 8);
             localStorage.setItem("druopc.recentServers", JSON.stringify(list));
         } catch { }
+    },
+
+    // Saved in a cookie (not localStorage) so the server can render the
+    // collapsed panels while prerendering; see PanelLayoutState.
+    setCollapsedPanels: function (panelKeys) {
+        const maxAge = panelKeys.length > 0 ? 60 * 60 * 24 * 365 : 0;
+        document.cookie = `druopc.panelsCollapsed=${panelKeys.join("|")}; path=/; max-age=${maxAge}; samesite=lax`;
     }
 };

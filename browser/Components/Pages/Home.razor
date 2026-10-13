@@ -10,6 +10,7 @@
 @inject UaEventLog EventLog
 @inject UaAlarmList Alarms
 @inject BrowserState State
+@inject PanelLayoutState PanelLayout
 @inject IJSRuntime Js
 @inject NavigationManager Navigation
 
@@ -78,6 +79,7 @@
 
         <a class="mini-link" title="Open another server in a new window"
            href="@NewWindowLink" target="_blank">⧉ new window</a>
+        <button class="mini" title="Reset saved panel layout" @onclick="ResetPanelLayoutAsync">Reset layout</button>
 
         <span class="conn-status @Connection.State.ToString().ToLowerInvariant()">
             ●
@@ -353,6 +355,7 @@
 
     protected override void OnInitialized()
     {
+        PanelLayout.Initialize();
         Connection.StateChanged += OnConnectionStateChanged;
         State.Notified += OnNotified;
         State.InspectRequested += OnInspectRequested;
@@ -606,6 +609,9 @@
 
         StateHasChanged();
     }
+
+    private Task ResetPanelLayoutAsync()
+        => PanelLayout.ResetAsync();
 
     private async Task OpenMethodDialogAsync(UaTreeNode methodNode)
     {
