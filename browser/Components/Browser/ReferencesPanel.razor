@@ -2,101 +2,57 @@
 @implements IDisposable
 @inject UaBrowserService Browser
 @inject BrowserState State
-@inject IJSRuntime Js
 
-<div class="panel references-panel @(_collapsed ? "collapsed" : "")">
-    <div class="panel-header">
-        <span>References</span>
-        <span class="header-controls">
-            <button class="mini" title="Refresh" @onclick="RefreshAsync" disabled="@(State.SelectedNode is null)">⟳</button>
-            <button class="mini" title="@(_collapsed ? "Expand" : "Collapse")" @onclick="ToggleCollapsedAsync">@(_collapsed ? "▸" : "▾")</button>
-        </span>
-    </div>
-    @if (!_collapsed)
-    {
-        <div class="panel-body">
-            @if (State.SelectedNode is null)
-            {
-                <div class="hint">Select a node to list its references.</div>
-            }
-            else if (_loading)
-            {
-                <div class="hint">Loading …</div>
-            }
-            else
-            {
-                <table class="grid">
-                    <thead>
-                        <tr><th></th><th>Reference</th><th>Target</th><th>Class</th><th>Type definition</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var row in _rows)
-                        {
-                            <tr>
-                                <td title="@(row.IsForward ? "Forward" : "Inverse")">@(row.IsForward ? "→" : "←")</td>
-                                <td>@row.ReferenceType</td>
-                                <td>
-                                    @if (row.TargetNodeId is not null)
-                                    {
-                                        <a class="node-link" title="@row.TargetNodeId.ToString()"
-                                           @onclick="() => NavigateAsync(row)">@row.Target</a>
-                                    }
-                                    else
-                                    {
-                                        @row.Target
-                                    }
-                                </td>
-                                <td>@row.TargetNodeClass</td>
-                                <td>@row.TypeDefinition</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            }
-        </div>
-    }
-</div>
+<CollapsiblePanel PanelKey="right.references" Title="References" CssClass="references-panel">
+    <HeaderControls>
+        <button class="mini" title="Refresh" @onclick="RefreshAsync" disabled="@(State.SelectedNode is null)">⟳</button>
+    </HeaderControls>
+    <ChildContent>
+        @if (State.SelectedNode is null)
+        {
+            <div class="hint">Select a node to list its references.</div>
+        }
+        else if (_loading)
+        {
+            <div class="hint">Loading …</div>
+        }
+        else
+        {
+            <table class="grid">
+                <thead>
+                    <tr><th></th><th>Reference</th><th>Target</th><th>Class</th><th>Type definition</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _rows)
+                    {
+                        <tr>
+                            <td title="@(row.IsForward ? "Forward" : "Inverse")">@(row.IsForward ? "→" : "←")</td>
+                            <td>@row.ReferenceType</td>
+                            <td>
+                                @if (row.TargetNodeId is not null)
+                                {
+                                    <a class="node-link" title="@row.TargetNodeId.ToString()"
+                                       @onclick="() => NavigateAsync(row)">@row.Target</a>
+                                }
+                                else
+                                {
+                                    @row.Target
+                                }
+                            </td>
+                            <td>@row.TargetNodeClass</td>
+                            <td>@row.TypeDefinition</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </ChildContent>
+</CollapsiblePanel>
 
 @code {
     private List<UaReferenceRow> _rows = [];
     private bool _loading;
     private NodeId? _loadedFor;
-    private bool _collapsed;
-
-    private async Task ToggleCollapsedAsync()
-    {
-        _collapsed = !_collapsed;
-
-        try
-        {
-            await Js.InvokeVoidAsync("druopc.setPanelCollapsed", "right.references", _collapsed);
-        }
-        catch (Exception)
-        {
-            // localStorage unavailable; not critical.
-        }
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender)
-        {
-            return;
-        }
-
-        try
-        {
-            _collapsed = await Js.InvokeAsync<bool>("druopc.getPanelCollapsed", "right.references");
-            if (_collapsed)
-            {
-                StateHasChanged();
-            }
-        }
-        catch (Exception)
-        {
-            // localStorage unavailable; not critical.
-        }
-    }
 
     protected override void OnInitialized()
     {

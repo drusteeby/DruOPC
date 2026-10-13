@@ -1,3 +1,5 @@
+const PANEL_COLLAPSED_PREFIX = "druopc.panelCollapsed.";
+
 window.druopc = {
     copyText: async function (text) {
         try {
@@ -55,25 +57,28 @@ window.druopc = {
         } catch { }
     },
 
-    getPanelCollapsed: function (panelKey) {
+    // Keys of every panel saved as collapsed, e.g. ["right.attributes"].
+    getCollapsedPanels: function () {
         try {
-            return localStorage.getItem(`druopc.panelCollapsed.${panelKey}`) === "1";
+            return Object.keys(localStorage)
+                .filter(k => k.startsWith(PANEL_COLLAPSED_PREFIX) && localStorage.getItem(k) === "1")
+                .map(k => k.slice(PANEL_COLLAPSED_PREFIX.length));
         } catch {
-            return false;
+            return [];
         }
     },
 
     setPanelCollapsed: function (panelKey, collapsed) {
         try {
-            localStorage.setItem(`druopc.panelCollapsed.${panelKey}`, collapsed ? "1" : "0");
+            localStorage.setItem(PANEL_COLLAPSED_PREFIX + panelKey, collapsed ? "1" : "0");
         } catch { }
     },
 
     resetPanelLayout: function () {
         try {
-            localStorage.removeItem("druopc.panelCollapsed.right.selectedNode");
-            localStorage.removeItem("druopc.panelCollapsed.right.attributes");
-            localStorage.removeItem("druopc.panelCollapsed.right.references");
+            Object.keys(localStorage)
+                .filter(k => k.startsWith(PANEL_COLLAPSED_PREFIX))
+                .forEach(k => localStorage.removeItem(k));
         } catch { }
     }
 };

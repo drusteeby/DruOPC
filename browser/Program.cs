@@ -23,6 +23,7 @@ builder.Services.AddScoped<UaEventLog>();
 builder.Services.AddScoped<UaAlarmList>();
 builder.Services.AddScoped<UaHistoryService>();
 builder.Services.AddScoped<BrowserState>();
+builder.Services.AddScoped<PanelLayoutState>();
 
 var app = builder.Build();
 

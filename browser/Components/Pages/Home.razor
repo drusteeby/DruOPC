@@ -10,6 +10,7 @@
 @inject UaEventLog EventLog
 @inject UaAlarmList Alarms
 @inject BrowserState State
+@inject PanelLayoutState PanelLayout
 @inject IJSRuntime Js
 @inject NavigationManager Navigation
 
@@ -387,6 +388,9 @@
             // localStorage unavailable; not critical.
         }
 
+        // One JS call restores every side panel's saved collapsed state.
+        await PanelLayout.LoadAsync();
+
         // Auto-connect when opened through a deep link.
         if (_deepLinkConnect)
         {
@@ -608,19 +612,8 @@
         StateHasChanged();
     }
 
-    private async Task ResetPanelLayoutAsync()
-    {
-        try
-        {
-            await Js.InvokeVoidAsync("druopc.resetPanelLayout");
-        }
-        catch (Exception)
-        {
-            // localStorage unavailable; not critical.
-        }
-
-        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
-    }
+    private Task ResetPanelLayoutAsync()
+        => PanelLayout.ResetAsync();
 
     private async Task OpenMethodDialogAsync(UaTreeNode methodNode)
     {

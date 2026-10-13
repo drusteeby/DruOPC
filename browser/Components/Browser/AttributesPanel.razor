@@ -4,95 +4,52 @@
 @inject BrowserState State
 @inject IJSRuntime Js
 
-<div class="panel attributes-panel @(_collapsed ? "collapsed" : "")">
-    <div class="panel-header">
-        <span>Attributes</span>
-        <span class="header-controls">
-            <button class="mini" title="Refresh" @onclick="RefreshAsync" disabled="@(State.SelectedNode is null)">⟳</button>
-            <button class="mini" title="@(_collapsed ? "Expand" : "Collapse")" @onclick="ToggleCollapsedAsync">@(_collapsed ? "▸" : "▾")</button>
-        </span>
-    </div>
-    @if (!_collapsed)
-    {
-        <div class="panel-body">
-            @if (State.SelectedNode is null)
-            {
-                <div class="hint">Select a node to inspect its attributes.</div>
-            }
-            else if (_loading)
-            {
-                <div class="hint">Loading @State.SelectedNode.DisplayName …</div>
-            }
-            else
-            {
-                <table class="grid">
-                    <thead>
-                        <tr><th>Attribute</th><th>Value</th><th></th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var row in _rows)
-                        {
-                            <tr class="@(row.IsBad ? "bad" : "")">
-                                <td class="attr-name">@row.Name</td>
-                                <td class="attr-value">
-                                    <div class="value-text">@row.Value</div>
-                                    @if (!string.IsNullOrEmpty(row.Detail))
-                                    {
-                                        <div class="value-detail">@row.Detail</div>
-                                    }
-                                </td>
-                                <td class="row-actions">
-                                    <button class="mini" title="Copy value" @onclick="() => CopyAsync(row.Value)">⧉</button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            }
-        </div>
-    }
-</div>
+<CollapsiblePanel PanelKey="right.attributes" Title="Attributes" CssClass="attributes-panel">
+    <HeaderControls>
+        <button class="mini" title="Refresh" @onclick="RefreshAsync" disabled="@(State.SelectedNode is null)">⟳</button>
+    </HeaderControls>
+    <ChildContent>
+        @if (State.SelectedNode is null)
+        {
+            <div class="hint">Select a node to inspect its attributes.</div>
+        }
+        else if (_loading)
+        {
+            <div class="hint">Loading @State.SelectedNode.DisplayName …</div>
+        }
+        else
+        {
+            <table class="grid">
+                <thead>
+                    <tr><th>Attribute</th><th>Value</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _rows)
+                    {
+                        <tr class="@(row.IsBad ? "bad" : "")">
+                            <td class="attr-name">@row.Name</td>
+                            <td class="attr-value">
+                                <div class="value-text">@row.Value</div>
+                                @if (!string.IsNullOrEmpty(row.Detail))
+                                {
+                                    <div class="value-detail">@row.Detail</div>
+                                }
+                            </td>
+                            <td class="row-actions">
+                                <button class="mini" title="Copy value" @onclick="() => CopyAsync(row.Value)">⧉</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </ChildContent>
+</CollapsiblePanel>
 
 @code {
     private List<UaAttributeRow> _rows = [];
     private bool _loading;
     private NodeId? _loadedFor;
-    private bool _collapsed;
-
-    private async Task ToggleCollapsedAsync()
-    {
-        _collapsed = !_collapsed;
-
-        try
-        {
-            await Js.InvokeVoidAsync("druopc.setPanelCollapsed", "right.attributes", _collapsed);
-        }
-        catch (Exception)
-        {
-            // localStorage unavailable; not critical.
-        }
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender)
-        {
-            return;
-        }
-
-        try
-        {
-            _collapsed = await Js.InvokeAsync<bool>("druopc.getPanelCollapsed", "right.attributes");
-            if (_collapsed)
-            {
-                StateHasChanged();
-            }
-        }
-        catch (Exception)
-        {
-            // localStorage unavailable; not critical.
-        }
-    }
 
     protected override void OnInitialized()
     {
