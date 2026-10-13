@@ -9,12 +9,24 @@ on:
     #   - "src/**/*.tsx"
     #   - "src/**/*.js"
     #   - "src/**/*.jsx"
+  # Fork PRs don't get secrets or OIDC under pull_request, so a maintainer
+  # requests their review by adding the 'claude-review' label. This runs in the
+  # base repo context; never check out the PR head here.
+  pull_request_target:
+    types: [labeled]
 
 jobs:
   claude-review:
     # Dependabot runs don't get Actions secrets, so the review token is empty
     # and the job can only fail; version bumps don't need a review anyway.
-    if: github.actor != 'dependabot[bot]'
+    # Same-repo PRs review automatically; fork PRs only when labeled.
+    if: |
+      github.actor != 'dependabot[bot]' && (
+        (github.event_name == 'pull_request' &&
+         github.event.pull_request.head.repo.full_name == github.repository) ||
+        (github.event_name == 'pull_request_target' &&
+         github.event.label.name == 'claude-review')
+      )
 
     # Optional: Filter by PR author
     # if: |
