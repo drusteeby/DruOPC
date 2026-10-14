@@ -60,5 +60,34 @@ window.druopc = {
     setCollapsedPanels: function (panelKeys) {
         const maxAge = panelKeys.length > 0 ? 60 * 60 * 24 * 365 : 0;
         document.cookie = `druopc.panelsCollapsed=${panelKeys.join("|")}; path=/; max-age=${maxAge}; samesite=lax`;
+    },
+
+    // Watch list per server, saved in a cookie like the panel layout.
+    // Node ids are URI-encoded so '|' can separate them.
+    getWatchList: function (serverUrl) {
+        const name = druopc._watchCookieName(serverUrl) + "=";
+        const entry = document.cookie.split("; ").find(c => c.startsWith(name));
+        if (!entry) { return []; }
+        return entry.substring(name.length).split("|")
+            .filter(v => v.length > 0).map(decodeURIComponent);
+    },
+
+    setWatchList: function (serverUrl, nodeIds) {
+        const value = nodeIds.map(encodeURIComponent).join("|");
+        // Browsers cap a cookie around 4 KB; drop the overflow rather than lose it all.
+        let kept = value;
+        while (kept.length > 3500) {
+            kept = kept.substring(0, kept.lastIndexOf("|"));
+        }
+        const maxAge = kept.length > 0 ? 60 * 60 * 24 * 365 : 0;
+        document.cookie = `${druopc._watchCookieName(serverUrl)}=${kept}; path=/; max-age=${maxAge}; samesite=lax`;
+    },
+
+    _watchCookieName: function (serverUrl) {
+        let h = 5381;
+        for (const ch of serverUrl.trim().toLowerCase()) {
+            h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0;
+        }
+        return "druopc.watch." + h.toString(16);
     }
 };

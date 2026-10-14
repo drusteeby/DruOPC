@@ -357,6 +357,7 @@
     {
         PanelLayout.Initialize();
         Connection.StateChanged += OnConnectionStateChanged;
+        WatchList.ListChanged += OnWatchListChanged;
         State.Notified += OnNotified;
         State.InspectRequested += OnInspectRequested;
         State.HistoryRequested += OnHistoryRequested;
@@ -474,6 +475,71 @@
         }
     }
 
+    private string? _watchKey;
+    private bool _restoringWatchList;
+
+    private async Task RestoreWatchListAsync(string serverUrl)
+    {
+        _restoringWatchList = true;
+        try
+        {
+            var saved = await Js.InvokeAsync<string[]>("druopc.getWatchList", serverUrl);
+            foreach (var text in saved)
+            {
+                if (WatchList.Items.Any(i => i.NodeId.ToString() == text))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var node = NodeId.Parse(text);
+                    await WatchList.AddAsync(node, await Browser.GetDisplayNameAsync(node));
+                }
+                catch (Exception)
+                {
+                    // Node no longer exists on this server; skip it.
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Cookies unavailable; not critical.
+        }
+        finally
+        {
+            _restoringWatchList = false;
+        }
+
+        await SaveWatchListAsync();
+    }
+
+    private void OnWatchListChanged()
+    {
+        if (!_restoringWatchList)
+        {
+            _ = InvokeAsync(SaveWatchListAsync);
+        }
+    }
+
+    private async Task SaveWatchListAsync()
+    {
+        if (_watchKey is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var ids = WatchList.Items.Select(i => i.NodeId.ToString()).ToArray();
+            await Js.InvokeVoidAsync("druopc.setWatchList", _watchKey, (object)ids);
+        }
+        catch (Exception)
+        {
+            // Cookies unavailable; not critical.
+        }
+    }
+
     private async Task ConnectAsync(EndpointDescription? endpoint)
     {
         _busy = true;
@@ -493,6 +559,9 @@
 
             Browser.Reset();
             State.Notify($"Connected to {Connection.SessionInfo?.EndpointUrl}");
+
+            _watchKey = _endpointUrl.Trim();
+            await RestoreWatchListAsync(_watchKey);
 
             try
             {
@@ -568,7 +637,7 @@
 
         try
         {
-            await WatchList.ClearAsync();
+            await WatchList.ClearAsync(raiseListChanged: false);
             await EventLog.StopAsync();
             await Alarms.StopAsync();
             await Connection.DisconnectAsync();
@@ -624,6 +693,7 @@
     public void Dispose()
     {
         Connection.StateChanged -= OnConnectionStateChanged;
+        WatchList.ListChanged -= OnWatchListChanged;
         State.Notified -= OnNotified;
         State.InspectRequested -= OnInspectRequested;
         State.HistoryRequested -= OnHistoryRequested;
