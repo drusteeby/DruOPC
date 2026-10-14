@@ -75,6 +75,7 @@ window.druopc = {
     setWatchList: function (serverUrl, nodeIds) {
         const value = nodeIds.map(encodeURIComponent).join("|");
         // Browsers cap a cookie around 4 KB; drop the overflow rather than lose it all.
+        // Dropped entries stay in the live watch list but won't be restored after a reload.
         let kept = value;
         while (kept.length > 3500) {
             kept = kept.substring(0, kept.lastIndexOf("|"));
