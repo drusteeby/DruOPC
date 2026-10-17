@@ -357,6 +357,7 @@
     {
         PanelLayout.Initialize();
         Connection.StateChanged += OnConnectionStateChanged;
+        WatchList.ListChanged += OnWatchListChanged;
         State.Notified += OnNotified;
         State.InspectRequested += OnInspectRequested;
         State.HistoryRequested += OnHistoryRequested;
@@ -474,6 +475,97 @@
         }
     }
 
+    private string? _watchKey;
+    private bool _restoringWatchList;
+
+    private async Task RestoreWatchListAsync(string serverUrl)
+    {
+        string[] saved;
+        try
+        {
+            saved = await Js.InvokeAsync<string[]>("druopc.getWatchList", serverUrl);
+        }
+        catch (Exception)
+        {
+            // Cookies unavailable; leave whatever is saved untouched.
+            return;
+        }
+
+        // Nodes that failed for a reason other than "does not exist" stay in
+        // the saved list so a transient error can't drop them.
+        var retained = new List<string>();
+
+        // Saves are suppressed during the restore, including for edits the user
+        // makes meanwhile; the final save below covers both.
+        _restoringWatchList = true;
+        try
+        {
+            foreach (var text in saved)
+            {
+                if (WatchList.Items.Any(i => i.NodeId.ToString() == text))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var node = NodeId.Parse(text);
+                    var value = await Browser.ReadValueAsync(node);
+                    if (value.StatusCode == StatusCodes.BadNodeIdUnknown
+                        || value.StatusCode == StatusCodes.BadNodeIdInvalid)
+                    {
+                        continue; // node no longer exists on this server
+                    }
+
+                    await WatchList.AddAsync(node, await Browser.GetDisplayNameAsync(node));
+                }
+                catch (FormatException)
+                {
+                    // Unparseable id; drop it.
+                }
+                catch (Exception)
+                {
+                    retained.Add(text);
+                }
+            }
+        }
+        finally
+        {
+            _restoringWatchList = false;
+        }
+
+        await SaveWatchListAsync(retained);
+    }
+
+    private void OnWatchListChanged()
+    {
+        if (!_restoringWatchList)
+        {
+            _ = InvokeAsync(() => SaveWatchListAsync());
+        }
+    }
+
+    private async Task SaveWatchListAsync(IEnumerable<string>? extraIds = null)
+    {
+        if (_watchKey is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var ids = WatchList.Items.Select(i => i.NodeId.ToString())
+                .Concat(extraIds ?? [])
+                .Distinct()
+                .ToArray();
+            await Js.InvokeVoidAsync("druopc.setWatchList", _watchKey, (object)ids);
+        }
+        catch (Exception)
+        {
+            // Cookies unavailable; not critical.
+        }
+    }
+
     private async Task ConnectAsync(EndpointDescription? endpoint)
     {
         _busy = true;
@@ -493,6 +585,9 @@
 
             Browser.Reset();
             State.Notify($"Connected to {Connection.SessionInfo?.EndpointUrl}");
+
+            _watchKey = _endpointUrl.Trim();
+            await RestoreWatchListAsync(_watchKey);
 
             try
             {
@@ -568,10 +663,11 @@
 
         try
         {
-            await WatchList.ClearAsync();
+            await WatchList.ClearAsync(raiseListChanged: false);
             await EventLog.StopAsync();
             await Alarms.StopAsync();
             await Connection.DisconnectAsync();
+            _watchKey = null;
             _tree?.Clear();
         }
         catch (Exception ex)
@@ -624,6 +720,7 @@
     public void Dispose()
     {
         Connection.StateChanged -= OnConnectionStateChanged;
+        WatchList.ListChanged -= OnWatchListChanged;
         State.Notified -= OnNotified;
         State.InspectRequested -= OnInspectRequested;
         State.HistoryRequested -= OnHistoryRequested;

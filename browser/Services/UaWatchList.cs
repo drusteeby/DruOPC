@@ -41,6 +41,9 @@ public sealed class UaWatchList : IAsyncDisposable
     /// <summary>Raised when any item value changes. May fire on a background thread.</summary>
     public event Action? Changed;
 
+    /// <summary>Raised when items are added or removed by the user (not on disconnect/teardown).</summary>
+    public event Action? ListChanged;
+
     /// <summary>
     /// Add a variable node to the watch list and start monitoring it.
     /// </summary>
@@ -110,6 +113,7 @@ public sealed class UaWatchList : IAsyncDisposable
         }
 
         Changed?.Invoke();
+        ListChanged?.Invoke();
     }
 
     /// <summary>
@@ -149,12 +153,14 @@ public sealed class UaWatchList : IAsyncDisposable
         }
 
         Changed?.Invoke();
+        ListChanged?.Invoke();
     }
 
     /// <summary>
-    /// Remove all items.
+    /// Remove all items. Pass <paramref name="raiseListChanged"/> false when
+    /// tearing down (disconnect) so a persisted watch list is kept.
     /// </summary>
-    public async Task ClearAsync()
+    public async Task ClearAsync(bool raiseListChanged = true)
     {
         await _lock.WaitAsync().ConfigureAwait(false);
         try
@@ -169,6 +175,10 @@ public sealed class UaWatchList : IAsyncDisposable
         }
 
         Changed?.Invoke();
+        if (raiseListChanged)
+        {
+            ListChanged?.Invoke();
+        }
     }
 
     /// <summary>
@@ -306,7 +316,7 @@ public sealed class UaWatchList : IAsyncDisposable
 
         try
         {
-            await ClearAsync().ConfigureAwait(false);
+            await ClearAsync(raiseListChanged: false).ConfigureAwait(false);
         }
         catch
         {
